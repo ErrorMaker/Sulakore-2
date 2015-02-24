@@ -19,6 +19,7 @@ namespace Sulakore.Components
             MultiSelect = false;
             View = View.Details;
             FullRowSelect = true;
+            HideSelection = false;
             LockColumnWidth = true;
             ShowItemToolTips = true;
             UseCompatibleStateImageBehavior = false;
@@ -35,7 +36,7 @@ namespace Sulakore.Components
             int index = listViewItem.Index;
             bool selectNext = Items.Count - 1 > 0;
 
-            _suppressSelectionChangedEvent = true;
+            _suppressSelectionChangedEvent = selectNext;
             Items.RemoveAt(index);
 
             if (selectNext)
@@ -136,8 +137,8 @@ namespace Sulakore.Components
         }
         protected override void OnItemSelectionChanged(ListViewItemSelectionChangedEventArgs e)
         {
-            if (_suppressSelectionChangedEvent && !e.IsSelected) 
-               _suppressSelectionChangedEvent = false;
+            if (_suppressSelectionChangedEvent && !e.IsSelected)
+                _suppressSelectionChangedEvent = false;
             else
             {
                 base.OnItemSelectionChanged(e);
