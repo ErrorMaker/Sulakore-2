@@ -109,15 +109,19 @@ namespace Sulakore.Extensions
 
         internal void DataToClient(byte[] data)
         {
-            base.ProcessIncoming(data);
-            OnDataToClient(new HMessage(data, HDestination.Client));
+            var packet = new HMessage(data, HDestination.Client);
+            base.ProcessIncoming(packet);
+
+            OnDataToClient(packet);
         }
         protected abstract void OnDataToClient(HMessage packet);
 
         internal void DataToServer(byte[] data)
         {
-            base.ProcessOutgoing(data);
-            OnDataToServer(new HMessage(data, HDestination.Client));
+            var packet = new HMessage(data, HDestination.Server);
+            base.ProcessOutgoing(packet);
+
+            OnDataToServer(packet);
         }
         protected abstract void OnDataToServer(HMessage packet);
 
