@@ -10,7 +10,7 @@ namespace Sulakore.Protocol
     {
         private byte[] _toBytesCache;
         private string _toStringCache;
-        private bool _suppressRead, _enablePushPull;
+        private bool _suppressRead, _beganConstructing;
 
         private readonly List<byte> _body;
         private readonly List<object> _read, _written;
@@ -123,7 +123,7 @@ namespace Sulakore.Protocol
         public HMessage(ushort header, HDestination destination, params object[] chunks)
             : this(Construct(header, chunks), destination)
         {
-            _enablePushPull = true;
+            _beganConstructing = true;
             AddToWritten(chunks);
         }
 
@@ -223,12 +223,70 @@ namespace Sulakore.Protocol
             finally { _suppressRead = false; }
         }
 
-        public void Write(params object[] chunks)
+        public void Append(params object[] chunks)
         {
-            byte[] constructed = Encode(chunks);
             AddToWritten(chunks);
+            byte[] constructed = Encode(chunks);
 
             _body.AddRange(constructed);
+            Reconstruct();
+        }
+
+        public void ClearChunks()
+        {
+            if (!_beganConstructing)
+                throw new Exception("This method cannot be called on a packet that you did not begin constructing.");
+
+            if (_written.Count < 1)
+                return;
+
+            _body.Clear();
+            _written.Clear();
+
+            Reconstruct();
+        }
+
+        public void Remove<T>()
+        {
+            RemoveAt<T>(Position);
+        }
+        public void RemoveChunk(int rank)
+        {
+            if (!_beganConstructing)
+                throw new Exception("This method cannot be called on a packet that you did not begin constructing.");
+
+            if (rank < 0 || rank >= _written.Count)
+                return;
+
+            _written.RemoveAt(rank);
+
+            _body.Clear();
+            if (_written.Count > 0)
+                _body.AddRange(Encode(_written.ToArray()));
+
+            Reconstruct();
+        }
+        public void RemoveAt<T>(int index)
+        {
+            int chunkLength = 0;
+            switch (Type.GetTypeCode(typeof(T)))
+            {
+                case TypeCode.Int32: chunkLength = 4; break;
+                case TypeCode.UInt16: chunkLength = 2; break;
+                case TypeCode.Boolean: chunkLength = 1; break;
+                case TypeCode.String:
+                {
+                    try
+                    {
+                        _suppressRead = true;
+                        chunkLength = (2 + ReadShort(index));
+                    }
+                    finally { _suppressRead = false; }
+                    break;
+                }
+            }
+            if (chunkLength < 1) return;
+            _body.RemoveRange(index, chunkLength);
             Reconstruct();
         }
 
@@ -250,8 +308,12 @@ namespace Sulakore.Protocol
                 {
                     if (bytesLeft > 2)
                     {
-                        _suppressRead = true;
-                        bytesNeeded = (2 + ReadShort(index));
+                        try
+                        {
+                            _suppressRead = true;
+                            bytesNeeded = (2 + ReadShort(index));
+                        }
+                        finally { _suppressRead = false; }
                     }
                     break;
                 }
@@ -259,73 +321,90 @@ namespace Sulakore.Protocol
             return bytesLeft >= bytesNeeded && bytesNeeded != -1;
         }
 
-        /// <summary>
-        /// Moves a chunk in the packet to the right.
-        /// </summary>
-        /// <param name="rank">The zero-based index that determines the order in which the chunk was added.</param>
-        /// <param name="jump">The amount of times the chunk is pushed to the right.</param>
-        public void PushChunk(int rank, int jump)
+        public void Replace<T>(object chunk)
         {
-            if (!_enablePushPull)
-                throw new Exception("'Push' is currently not supported with a packet that you did not begin constructing.");
+            ReplaceAt<T>(Position, chunk);
+        }
+        public void ReplaceChunk(int rank, object chunk)
+        {
+            if (!_beganConstructing)
+                throw new Exception("This method cannot be called on a packet that you did not begin constructing.");
 
-            if (rank >= _written.Count - 1) return;
+            if (rank < 0 || rank >= _written.Count)
+                return;
 
-            if (jump < 1) jump = 1;
-            int newRank = jump + rank;
+            _written[rank] = chunk;
 
-            if (newRank >= _written.Count)
-                newRank = _written.Count - 1;
-
-            object chunk = _written[rank];
-            _written.RemoveAt(rank);
-            _written.Insert(newRank, chunk);
-
-            Body = Encode(_written.ToArray());
-
-            _body.RemoveRange(2, _body.Count - 2);
-            _body.AddRange(Body);
-
+            _body.Clear();
+            _body.AddRange(Encode(_written.ToArray()));
             Reconstruct();
         }
         /// <summary>
-        /// Moves a chunk in the packet to the left.
+        /// Replaces the chunk at the given position.
         /// </summary>
-        /// <param name="rank">The zero-based index that determines the order in which the chunk was added.</param>
-        /// <param name="jump">The amount of times the chunk is pulled to the left.</param>
-        public void PullChunk(int rank, int jump)
+        /// <typeparam name="T">The type of the chunk to replace in the packet.</typeparam>
+        /// <param name="index">The zero-based index that determines the position of the chunk.</param>
+        /// <param name="chunk">The new value to replace the chunk.</param>
+        public void ReplaceAt<T>(int index, object chunk)
         {
-            throw new NotSupportedException();
-
-            if (!_enablePushPull)
-                throw new Exception("'Pull' is currently not supported with a packet that you did not begin constructing.");
-        }
-
-        public void Replace<T>(int index, object chunk)
-        {
-            switch (Type.GetTypeCode(chunk.GetType()))
+            byte[] data = Encode(chunk);
+            switch (Type.GetTypeCode(typeof(T)))
             {
-                case TypeCode.Int32:
-                {
-                    _body.RemoveRange(index, 4);
-                    break;
-                }
+                case TypeCode.Int32: _body.RemoveRange(index, 4); break;
+                case TypeCode.UInt16: _body.RemoveRange(index, 2); break;
                 case TypeCode.Byte:
-                case TypeCode.Boolean:
-                {
-                    _body.RemoveAt(index);
-                    break;
-                }
-
+                case TypeCode.Boolean: _body.RemoveAt(index); break;
                 case TypeCode.String:
                 {
-                    ushort stringLength = ReadShort(index);
-                    _body.RemoveRange(index, 2 + stringLength);
+                    try
+                    {
+                        _suppressRead = true;
+                        _body.RemoveRange(index, 2 + ReadShort(index));
+                    }
+                    finally { _suppressRead = false; }
                     break;
                 }
             }
-
             _body.InsertRange(index, Encode(chunk));
+            Reconstruct();
+        }
+
+        /// <summary>
+        /// Moves a chunk in the body to the right.
+        /// </summary>
+        /// <typeparam name="T">The type of the chunk to begin pushing.</typeparam>
+        /// <param name="rank">The zero-based value that determines the order in which the chunk was written.</param>
+        /// <param name="jump">The amount of chunks to jump over.</param>
+        public void PushChunk(int rank, int jump)
+        {
+            Move(rank, jump, true);
+        }
+        /// <summary>
+        /// Moves a chunk in the body to the left.
+        /// </summary>
+        /// <typeparam name="T">The type of the chunk to begin pulling.</typeparam>
+        /// <param name="rank">The zero-based value that determines the order in which the chunk was written.</param>
+        /// <param name="jump">The amount of chunks to jump over.</param>
+        public void PullChunk(int rank, int jump)
+        {
+            Move(rank, jump, false);
+        }
+        protected virtual void Move(int rank, int jump, bool isPush)
+        {
+            if (!_beganConstructing)
+                throw new Exception("This method cannot be called on a packet that you did not begin constructing.");
+
+            if (jump < 1) return;
+            int newRank = (isPush ? rank + jump : rank - jump);
+            if (newRank < 0) newRank = 0;
+            if (newRank >= _written.Count) newRank = _written.Count - 1;
+
+            object chunk = _written[rank];
+            _written.Remove(chunk);
+            _written.Insert(newRank, chunk);
+
+            _body.Clear();
+            _body.AddRange(Encode(_written.ToArray()));
             Reconstruct();
         }
 
@@ -416,9 +495,10 @@ namespace Sulakore.Protocol
 
                 switch (Type.GetTypeCode(chunk.GetType()))
                 {
-                    case TypeCode.UInt16: buffer.AddRange(BigEndian.CypherShort((ushort)chunk)); break;
-                    case TypeCode.Int32: buffer.AddRange(BigEndian.CypherInt((int)chunk)); break;
+                    case TypeCode.Byte: buffer.Add((byte)chunk); break;
                     case TypeCode.Boolean: buffer.Add(Convert.ToByte((bool)chunk)); break;
+                    case TypeCode.Int32: buffer.AddRange(BigEndian.CypherInt((int)chunk)); break;
+                    case TypeCode.UInt16: buffer.AddRange(BigEndian.CypherShort((ushort)chunk)); break;
 
                     default:
                     case TypeCode.String:
