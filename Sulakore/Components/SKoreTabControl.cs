@@ -42,6 +42,22 @@ namespace Sulakore.Components
             set { _skin = value; Invalidate(); }
         }
 
+        private Color _titleColor = Color.Black;
+        [DefaultValue(typeof(Color), "Black")]
+        public Color TitleColor
+        {
+            get { return _titleColor; }
+            set { _titleColor = value; Invalidate(); }
+        }
+
+        private Color _backcolor = Color.White;
+        [DefaultValue(typeof(Color), "White")]
+        public Color Backcolor
+        {
+            get { return _backcolor; }
+            set { _backcolor = value; Invalidate(); }
+        }
+
         public SKoreTabControl()
         {
             SetStyle((ControlStyles)2050, true);
@@ -55,7 +71,7 @@ namespace Sulakore.Components
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            e.Graphics.Clear(Color.White);
+            e.Graphics.Clear(Backcolor);
             if (DisplayBoundary)
             {
                 using (var pen = new Pen(Skin))
@@ -125,7 +141,8 @@ namespace Sulakore.Components
                     using (var solidBrush = new SolidBrush(SelectedIndex == i ? Skin : Color.Silver))
                         e.Graphics.FillRectangle(solidBrush, tabGlow);
 
-                    e.Graphics.DrawString(TabPages[i].Text, Font, Brushes.Black, tabTitle, titleFormat);
+                    using (var solidBrush = new SolidBrush(TitleColor))
+                        e.Graphics.DrawString(TabPages[i].Text, Font, solidBrush, tabTitle, titleFormat);
                 }
             }
             base.OnPaint(e);
