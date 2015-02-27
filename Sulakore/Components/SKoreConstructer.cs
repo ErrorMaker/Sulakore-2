@@ -30,11 +30,6 @@ namespace Sulakore.Components
 
         public SKoreConstructer()
         {
-            var typeCol = new ColumnHeader { Name = "TypeCol", Text = "Type" };
-            var valueCol = new ColumnHeader { Name = "ValueCol", Text = "Value" };
-            var encodedCol = new ColumnHeader { Name = "EncodedCol", Text = "Encoded" };
-            Columns.AddRange(new[] { typeCol, valueCol, encodedCol });
-
             _packet = new HMessage(0);
         }
 
