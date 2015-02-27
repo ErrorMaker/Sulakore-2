@@ -46,29 +46,22 @@ namespace Sulakore.Extensions
         {
             _currentAsmName = Assembly.GetExecutingAssembly().FullName;
         }
-        public Contractor(IHConnection connection)
+        public Contractor(IHConnection connection, string playerName, HGameData gameData)
         {
             _connection = connection;
             _installedExtensions = new List<IExtension>();
             _runningExtensions = new List<ExtensionBase>();
             _extensions = new ReadOnlyCollection<IExtension>(_installedExtensions);
 
+            GameData = gameData;
+            PlayerName = playerName;
+
             if (connection != null)
             {
-                Filters = _connection.Filters;
+                Filters = connection.Filters;
+                Hotel = SKore.ToHotel(connection.Host);
                 FlashClientBuild = _connection.FlashClientBuild;
             }
-        }
-        public Contractor(IHConnection connection, string playerName, HHotel hotel)
-            : this(connection)
-        {
-            PlayerName = playerName;
-            Hotel = hotel;
-        }
-        public Contractor(IHConnection connection, string playerName, HHotel hotel, HGameData gameData)
-            : this(connection, playerName, hotel)
-        {
-            GameData = gameData;
         }
 
         public int SendToClient(byte[] data)
