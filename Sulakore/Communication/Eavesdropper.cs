@@ -122,7 +122,6 @@ namespace Sulakore.Communication
 
                         while ((length = responseStream.Read(chunk, 0, chunk.Length)) > 0)
                         {
-                            //TODO: all the things
                             block = ByteUtils.CopyBlock(chunk, 0, length);
                             responseData = ByteUtils.Merge(responseData, block);
                         }
