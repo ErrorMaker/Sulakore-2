@@ -39,9 +39,9 @@ namespace Sulakore.Extensions
         /// </summary>
         IContractor Contractor { get; }
         /// <summary>
-        /// Gets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).
+        /// Gets or sets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).
         /// </summary>
-        ExtensionPriority Priority { get; }
+        ExtensionPriority Priority { get; set; }
 
         /// <summary>
         /// Gets the Type found in the extension's project scope that inherits from SKoreExtensionForm.
