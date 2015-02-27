@@ -111,7 +111,7 @@ namespace Sulakore.Communication
         }
         public HConnection(string host, int port)
         {
-            _filters = new HFilters(this);
+            _filters = new HFilters();
             _resetHostLock = new object();
             _disconnectLock = new object();
             _sendToClientLock = new object();
@@ -317,7 +317,7 @@ namespace Sulakore.Communication
             }
             catch { Disconnect(); }
         }
-        public override void ProcessOutgoing(byte[] data)
+        public void ProcessOutgoing(byte[] data)
         {
             ++_toServerS;
             if (_grabHeaders)
@@ -345,11 +345,7 @@ namespace Sulakore.Communication
                 finally
                 {
                     if (e.Cancel) SendToServer(e.Packet.ToBytes());
-                    else if (!e.Blocked)
-                    {
-                        for (int i = e.Repeat + 1; i > 0; i--)
-                            SendToServer(e.Replacement.ToBytes());
-                    }
+                    else if (!e.Blocked) SendToServer(e.Replacement.ToBytes());
                 }
             }
         }
@@ -394,7 +390,7 @@ namespace Sulakore.Communication
             }
             catch { Disconnect(); }
         }
-        public override void ProcessIncoming(byte[] data)
+        public void ProcessIncoming(byte[] data)
         {
             ++_toClientS;
             if (!ResponseEncrypted)
@@ -410,11 +406,7 @@ namespace Sulakore.Communication
                 finally
                 {
                     if (e.Cancel) SendToClient(e.Packet.ToBytes());
-                    else if (!e.Blocked)
-                    {
-                        for (int i = e.Repeat + 1; i > 0; i--)
-                            SendToClient(e.Replacement.ToBytes());
-                    }
+                    else if (!e.Blocked) SendToClient(e.Replacement.ToBytes());
                 }
             }
         }
