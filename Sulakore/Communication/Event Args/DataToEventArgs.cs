@@ -24,15 +24,6 @@ namespace Sulakore.Communication
             get { return _step; }
         }
 
-        private readonly int _repeat;
-        /// <summary>
-        /// Gets the amount of times the packet will be re-sent.
-        /// </summary>
-        public int Repeat
-        {
-            get { return _repeat; }
-        }
-
         private readonly bool _blocked;
         /// <summary>
         /// Gets or sets a value that indicates whether the packet should be sent.
@@ -42,23 +33,36 @@ namespace Sulakore.Communication
             get { return _blocked; }
         }
 
+        private HMessage _replacement;
         /// <summary>
         /// Gets or sets the packet that will replace the one originally intercepted.
         /// </summary>
-        public HMessage Replacement { get; set; }
+        public HMessage Replacement
+        {
+            get { return _replacement; }
+            set { _replacement = value; }
+        }
+
+        /// <summary>
+        /// Gets a value that indicates whether the replacement data is different than its original data.
+        /// </summary>
+        public bool Replaced
+        {
+            get { return !_packet.ToString().Equals(Replacement.ToString()); }
+        }
 
         public DataToEventArgs(byte[] data, HDestination destination, int step)
         {
             _step = step;
             _packet = new HMessage(data, destination);
-            Replacement = new HMessage(data, destination);
+            _replacement = new HMessage(data, destination);
         }
         public DataToEventArgs(byte[] data, HDestination destination, int step, HFilters filters)
             : this(data, destination, step)
         {
             _blocked = (destination == HDestination.Client)
-               ? filters.InProcessFilters(Replacement, ref _repeat)
-               : filters.OutProcessFilters(Replacement, ref _repeat);
+               ? filters.InProcessFilters(ref _replacement)
+               : filters.OutProcessFilters(ref _replacement);
         }
     }
 }
