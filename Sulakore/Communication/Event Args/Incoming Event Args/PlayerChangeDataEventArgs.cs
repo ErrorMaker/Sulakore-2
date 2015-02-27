@@ -21,10 +21,11 @@ namespace Sulakore.Communication
             _packet = packet;
             Header = _packet.Header;
 
+            int position = 4;
             PlayerIndex = _packet.ReadInt(0);
-            FigureId = _packet.ReadString(4);
-            Gender = SKore.ToGender(_packet.ReadString(12));
-            Motto = _packet.ReadString(14);
+            FigureId = _packet.ReadString(ref position);
+            Gender = SKore.ToGender(_packet.ReadString(position));
+            Motto = _packet.ReadString(position);
         }
 
         public override string ToString()
