@@ -15,8 +15,6 @@ namespace Sulakore.Protocol
         private readonly List<byte> _body;
         private readonly List<object> _read, _written;
 
-        private static readonly Encoding _encoding;
-
         private ushort _header;
         /// <summary>
         /// Gets or sets the header of the packet.
@@ -75,10 +73,6 @@ namespace Sulakore.Protocol
             get { return _chunksWritten; }
         }
 
-        static HMessage()
-        {
-            _encoding = Encoding.Default;
-        }
         private HMessage()
         {
             _body = new List<byte>();
@@ -115,10 +109,14 @@ namespace Sulakore.Protocol
 
                 Reconstruct();
             }
-            else _toBytesCache = data;
+            else
+            {
+                Length = data.Length;
+                _toBytesCache = data;
+            }
         }
         public HMessage(ushort header, params object[] chunks)
-            : this(header, HDestination.Server, chunks)
+            : this(header, HDestination.Unknown, chunks)
         { }
         public HMessage(ushort header, HDestination destination, params object[] chunks)
             : this(Construct(header, chunks), destination)
@@ -214,7 +212,7 @@ namespace Sulakore.Protocol
                 if (index >= Body.Length)
                     throw new Exception("Not enough data at the current position to begin reading a String type object.");
 
-                string value = _encoding.GetString(Body, index, length);
+                string value = Encoding.UTF8.GetString(Body, index, length);
                 index += length;
                 AddToRead(value);
 
@@ -347,13 +345,14 @@ namespace Sulakore.Protocol
         /// <param name="chunk">The new value to replace the chunk.</param>
         public void ReplaceAt<T>(int index, object chunk)
         {
-            byte[] data = Encode(chunk);
             switch (Type.GetTypeCode(typeof(T)))
             {
                 case TypeCode.Int32: _body.RemoveRange(index, 4); break;
                 case TypeCode.UInt16: _body.RemoveRange(index, 2); break;
+
                 case TypeCode.Byte:
                 case TypeCode.Boolean: _body.RemoveAt(index); break;
+
                 case TypeCode.String:
                 {
                     try
@@ -465,7 +464,7 @@ namespace Sulakore.Protocol
                     case "s": buffer.AddRange(Encode(args[1])); break;
                     case "i": buffer.AddRange(BigEndian.CypherInt(int.Parse(args[1]))); break;
                     case "u": buffer.AddRange(BigEndian.CypherShort(ushort.Parse(args[1]))); break;
-                    default: buffer.AddRange(_encoding.GetBytes(signature)); break;
+                    default: buffer.AddRange(Encoding.Default.GetBytes(signature)); break;
                 }
             }
 
@@ -476,7 +475,7 @@ namespace Sulakore.Protocol
         }
         public static string ToString(byte[] packet)
         {
-            string result = _encoding.GetString(packet);
+            string result = Encoding.Default.GetString(packet);
             for (int i = 0; i <= 13; i++)
                 result = result.Replace(((char)i).ToString(), "[" + i + "]");
             return result;
@@ -488,8 +487,9 @@ namespace Sulakore.Protocol
                 throw new NullReferenceException();
 
             var buffer = new List<byte>();
-            foreach (object chunk in chunks)
+            for (int i = 0; i < chunks.Length; i++)
             {
+                object chunk = chunks[i];
                 if (chunk == null)
                     throw new NullReferenceException();
 
@@ -507,10 +507,12 @@ namespace Sulakore.Protocol
                         if (data == null)
                         {
                             string value = chunk.ToString();
-                            data = new byte[2 + value.Length];
+                            value = value.Replace("\\r", "\r");
+                            value = value.Replace("\\n", "\n");
 
-                            Buffer.BlockCopy(BigEndian.CypherShort((ushort)value.Length), 0, data, 0, 2);
-                            Buffer.BlockCopy(_encoding.GetBytes(value), 0, data, 2, data.Length - 2);
+                            data = new byte[2 + Encoding.UTF8.GetByteCount(value)];
+                            Buffer.BlockCopy(BigEndian.CypherShort((ushort)(data.Length - 2)), 0, data, 0, 2);
+                            Buffer.BlockCopy(Encoding.UTF8.GetBytes(value), 0, data, 2, data.Length - 2);
                         }
                         buffer.AddRange(data);
                         break;
