@@ -7,83 +7,129 @@ namespace Sulakore.Communication
 {
     public class HFilters
     {
-        private readonly IHConnection _connection;
         private readonly IList<ushort> _inBlockedHeaders, _outBlockedHeaders;
-        private readonly IDictionary<ushort, Func<HMessage, bool>> _inBlockConditions, _outBlockConditions;
+        private readonly IDictionary<ushort, Predicate<HMessage>> _inBlockConditions, _outBlockConditions;
 
-        public HFilters(IHConnection connection)
+        private readonly IDictionary<ushort, HMessage> _inReplacements, _outReplacements;
+        private readonly IDictionary<ushort, Func<HMessage, HMessage>> _inReplacers, _outReplacers;
+
+        public HFilters()
         {
-            _connection = connection;
-
             _inBlockedHeaders = new List<ushort>();
             _outBlockedHeaders = new List<ushort>();
 
-            _inBlockConditions = new Dictionary<ushort, Func<HMessage, bool>>();
-            _outBlockConditions = new Dictionary<ushort, Func<HMessage, bool>>();
+            _inBlockConditions = new Dictionary<ushort, Predicate<HMessage>>();
+            _outBlockConditions = new Dictionary<ushort, Predicate<HMessage>>();
+
+            _inReplacements = new Dictionary<ushort, HMessage>();
+            _outReplacements = new Dictionary<ushort, HMessage>();
+
+            _inReplacers = new Dictionary<ushort, Func<HMessage, HMessage>>();
+            _outReplacers = new Dictionary<ushort, Func<HMessage, HMessage>>();
         }
 
         public void InUnblock()
         {
-            Unblock(HDestination.Client);
+            _inBlockedHeaders.Clear();
+            _inBlockConditions.Clear();
         }
-        public void InUnblock(ushort header)
-        {
-            Unblock(header, HDestination.Client);
-        }
-        public void InBlock(ushort header)
-        {
-            Block(header, HDestination.Client);
-        }
-        public void InBlock(ushort header, Func<HMessage, bool> condition)
-        {
-            Block(header, HDestination.Client, condition);
-        }
-
         public void OutUnblock()
         {
-            Unblock(HDestination.Server);
+            _outBlockedHeaders.Clear();
+            _outBlockConditions.Clear();
+        }
+
+        public void InUnblock(ushort header)
+        {
+            if (_inBlockedHeaders.Contains(header))
+                _inBlockedHeaders.Remove(header);
+
+            if (_inBlockConditions.ContainsKey(header))
+                _inBlockConditions.Remove(header);
         }
         public void OutUnblock(ushort header)
         {
-            Unblock(header, HDestination.Server);
+            if (_outBlockedHeaders.Contains(header))
+                _outBlockedHeaders.Remove(header);
+
+            if (_outBlockConditions.ContainsKey(header))
+                _outBlockConditions.Remove(header);
+        }
+
+        public void InBlock(ushort header)
+        {
+            InUnblock(header);
+            _inBlockedHeaders.Add(header);
         }
         public void OutBlock(ushort header)
         {
-            Block(header, HDestination.Server);
-        }
-        public void OutBlock(ushort header, Func<HMessage, bool> condition)
-        {
-            Block(header, HDestination.Server, condition);
+            OutUnblock(header);
+            _outBlockedHeaders.Add(header);
         }
 
-        public virtual void Unblock(HDestination destination)
+        public void InBlock(ushort header, Predicate<HMessage> predicate)
         {
-            bool isIncoming = (destination == HDestination.Client);
-            (isIncoming ? _inBlockedHeaders : _outBlockedHeaders).Clear();
-            (isIncoming ? _inBlockConditions : _outBlockConditions).Clear();
+            InUnblock(header);
+            _inBlockConditions.Add(header, predicate);
         }
-        public virtual void Unblock(ushort header, HDestination destination)
+        public void OutBlock(ushort header, Predicate<HMessage> predicate)
         {
-            bool isIncoming = (destination == HDestination.Client);
-            IList<ushort> blockedHeaders = (isIncoming ? _inBlockedHeaders : _outBlockedHeaders);
-            IDictionary<ushort, Func<HMessage, bool>> blockConditions = (isIncoming ? _inBlockConditions : _outBlockConditions);
-
-            if (blockedHeaders.Contains(header)) blockedHeaders.Remove(header);
-            else if (blockConditions.ContainsKey(header)) blockConditions.Remove(header);
+            OutUnblock(header);
+            _outBlockConditions.Add(header, predicate);
         }
-        public virtual void Block(ushort header, HDestination destination)
+        //
+        public void InUnreplace()
         {
-            Unblock(header, destination);
-
-            (destination == HDestination.Client
-                ? _inBlockedHeaders : _outBlockedHeaders).Add(header);
+            _inReplacers.Clear();
+            _inReplacements.Clear();
         }
-        public virtual void Block(ushort header, HDestination destination, Func<HMessage, bool> condition)
+        public void OuUnreplace()
         {
-            Unblock(header, destination);
+            _outReplacers.Clear();
+            _outReplacements.Clear();
+        }
 
-            (destination == HDestination.Client
-                ? _inBlockConditions : _outBlockConditions).Add(header, condition);
+        public void InUnreplace(ushort header)
+        {
+            if (_inReplacers.ContainsKey(header))
+                _inReplacers.Remove(header);
+
+            if (_inReplacements.ContainsKey(header))
+                _inReplacements.Remove(header);
+        }
+        public void OutUnreplace(ushort header)
+        {
+            if (_outReplacers.ContainsKey(header))
+                _outReplacers.Remove(header);
+
+            if (_outReplacements.ContainsKey(header))
+                _outReplacements.Remove(header);
+        }
+
+        public void InReplace(ushort header, HMessage packet)
+        {
+            InUnblock(header);
+            InUnreplace(header);
+            _inReplacements.Add(header, packet);
+        }
+        public void OutReplace(ushort header, HMessage packet)
+        {
+            OutUnblock(header);
+            OutUnreplace(header);
+            _outReplacements.Add(header, packet);
+        }
+
+        public void InReplace(ushort header, Func<HMessage, HMessage> replacer)
+        {
+            InUnblock(header);
+            InUnreplace(header);
+            _inReplacers.Add(header, replacer);
+        }
+        public void OutReplace(ushort header, Func<HMessage, HMessage> replacer)
+        {
+            OutUnblock(header);
+            OutUnreplace(header);
+            _outReplacers.Add(header, replacer);
         }
 
         /// <summary>
@@ -92,10 +138,15 @@ namespace Sulakore.Communication
         /// <param name="packet">The incoming packet to process.</param>
         /// <param name="repeat">The value type to update with the number of times the packet should be repeated.</param>
         /// <returns>true if the packet should be blocked; otherwise false.</returns>
-        public virtual bool InProcessFilters(HMessage packet, ref int repeat)
+        public virtual bool InProcessFilters(ref HMessage packet)
         {
             if (_inBlockedHeaders.Contains(packet.Header) || (_inBlockConditions.ContainsKey(packet.Header)
                 && _inBlockConditions[packet.Header](packet))) return true;
+
+            if (_inReplacements.ContainsKey(packet.Header))
+                packet = _inReplacements[packet.Header];
+            else if (_inReplacers.ContainsKey(packet.Header))
+                packet = _inReplacers[packet.Header](packet);
 
             return false;
         }
@@ -105,10 +156,15 @@ namespace Sulakore.Communication
         /// <param name="packet">The outgoing packet to process.</param>
         /// <param name="repeat">The value type to update with the number of times the packet should be repeated.</param>
         /// <returns>true if the packet should be blocked; otherwise false.</returns>
-        public virtual bool OutProcessFilters(HMessage packet, ref int repeat)
+        public virtual bool OutProcessFilters(ref HMessage packet)
         {
             if (_outBlockedHeaders.Contains(packet.Header) || (_outBlockConditions.ContainsKey(packet.Header)
                 && _outBlockConditions[packet.Header](packet))) return true;
+
+            if (_outReplacements.ContainsKey(packet.Header))
+                packet = _outReplacements[packet.Header];
+            else if (_outReplacers.ContainsKey(packet.Header))
+                packet = _outReplacers[packet.Header](packet);
 
             return false;
         }
