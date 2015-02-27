@@ -50,6 +50,11 @@ namespace Sulakore.Protocol
             _ticker.Start();
             IsRunning = true;
         }
+        public void Toggle()
+        {
+            if (IsRunning) Stop();
+            else Start();
+        }
 
         public void Dispose()
         {
@@ -57,10 +62,11 @@ namespace Sulakore.Protocol
         }
         protected virtual void Dispose(bool disposing)
         {
+            SKore.Unsubscribe(ref ScheduleTriggered);
+
             if (disposing)
             {
                 Stop();
-                SKore.Unsubscribe(ref ScheduleTriggered);
                 _ticker.Dispose();
             }
         }
