@@ -1,8 +1,8 @@
 ﻿using System;
-
-using Sulakore.Protocol;
-using Sulakore.Habbo;
 using System.Collections.ObjectModel;
+
+using Sulakore.Habbo;
+using Sulakore.Protocol;
 
 namespace Sulakore.Communication
 {
