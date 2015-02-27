@@ -43,9 +43,9 @@ namespace Sulakore.Extensions
         /// </summary>
         public IContractor Contractor { get; internal set; }
         /// <summary>
-        /// Gets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).
+        /// Gets or sets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).
         /// </summary>
-        public ExtensionPriority Priority { get; protected set; }
+        public ExtensionPriority Priority { get; set; }
 
         /// <summary>
         /// Gets the Type found in the extension's project scope that inherits from SKoreExtensionForm.
@@ -105,7 +105,10 @@ namespace Sulakore.Extensions
             if (invoker == this) throw new Exception("DENIED: Self-invocation not allowed, you also probably didn't mean to anyways.");
             return OnInvoked(invoker, command, args);
         }
-        protected abstract object OnInvoked(object invoker, string command, params object[] args);
+        protected virtual object OnInvoked(object invoker, string command, params object[] args)
+        {
+            return null;
+        }
 
         internal void DataToClient(byte[] data)
         {
