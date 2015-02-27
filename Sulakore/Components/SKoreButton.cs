@@ -49,7 +49,7 @@ namespace Sulakore.Components
             set { base.Text = value; Invalidate(); }
         }
 
-        [DefaultValue(typeof(Size), "100, 23")]
+        [DefaultValue(typeof(Size), "100, 22")]
         [Localizable(true)]
         new public Size Size
         {
@@ -71,7 +71,7 @@ namespace Sulakore.Components
             SetStyle((ControlStyles)2050, true);
             DoubleBuffered = true;
 
-            Size = new Size(100, 23);
+            Size = new Size(100, 22);
             BackColor = Color.Transparent;
         }
 
