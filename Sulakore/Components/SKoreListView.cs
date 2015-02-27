@@ -105,8 +105,8 @@ namespace Sulakore.Components
             Items.Add(listViewItem);
 
             _suppressSelectionChangedEvent = Items.Count > 1;
-
             listViewItem.Selected = true;
+
             EnsureVisible(listViewItem.Index);
         }
         public ListViewItem FocusAdd(params string[] items)
