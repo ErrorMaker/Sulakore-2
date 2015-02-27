@@ -11,10 +11,8 @@ namespace Sulakore.Communication
     {
         private bool _lockEvents, _captureEvents;
 
-        private readonly Stack<HMessage> _previousOutgoing, _previousIncoming;
-        private readonly IDictionary<ushort, Action<HMessage>> _lockedOut, _lockedIn, _inCallbacks, _outCallbacks;
-
-        private static readonly string[] _gestureTypes;
+        private readonly Stack<HMessage> _outPrevious, _inPrevious;
+        private readonly IDictionary<ushort, Action<HMessage>> _outLocked, _inLocked, _inCallbacks, _outCallbacks;
 
         #region Incoming Game Event Handlers
         public event EventHandler<FurnitureDataLoadedEventArgs> FurnitureDataLoaded;
@@ -314,8 +312,8 @@ namespace Sulakore.Communication
 
                 if (!(_lockEvents = value))
                 {
-                    _lockedOut.Clear();
-                    _lockedIn.Clear();
+                    _outLocked.Clear();
+                    _inLocked.Clear();
                 }
             }
         }
@@ -328,24 +326,20 @@ namespace Sulakore.Communication
 
                 if (!(_captureEvents = value))
                 {
-                    _previousOutgoing.Clear();
-                    _previousIncoming.Clear();
+                    _outPrevious.Clear();
+                    _inPrevious.Clear();
                 }
             }
         }
         public bool UpdateHeaders { get; set; }
 
-        static HTriggers()
-        {
-            _gestureTypes = new[] { "wave", "idle", "blow_kiss", "laugh" };
-        }
         public HTriggers()
         {
-            _previousOutgoing = new Stack<HMessage>();
-            _previousIncoming = new Stack<HMessage>();
+            _outPrevious = new Stack<HMessage>();
+            _inPrevious = new Stack<HMessage>();
 
-            _lockedIn = new Dictionary<ushort, Action<HMessage>>();
-            _lockedOut = new Dictionary<ushort, Action<HMessage>>();
+            _inLocked = new Dictionary<ushort, Action<HMessage>>();
+            _outLocked = new Dictionary<ushort, Action<HMessage>>();
 
             _inCallbacks = new Dictionary<ushort, Action<HMessage>>();
             _outCallbacks = new Dictionary<ushort, Action<HMessage>>();
@@ -379,166 +373,169 @@ namespace Sulakore.Communication
             _outCallbacks[header] = callback;
         }
 
-        public virtual void ProcessOutgoing(byte[] data)
+        public void ProcessOutgoing(byte[] data)
         {
-            var packet = new HMessage(data, HDestination.Server);
-            if (_outCallbacks.Count > 0 && _outCallbacks.ContainsKey(packet.Header))
-            {
-                _outCallbacks[packet.Header](packet);
-                packet.Position = 0;
-            }
-            if (!CaptureEvents) return;
+            var current = new HMessage(data, HDestination.Server);
+            ProcessOutgoing(current);
+        }
+        public void ProcessOutgoing(HMessage current)
+        {
+            if (current == null || current.IsCorrupted) return;
             try
             {
-                HMessage previousOutgoing = (_previousOutgoing.Count > 0 ? _previousOutgoing.Pop() : null);
-                if (LockEvents && _lockedOut.ContainsKey(packet.Header))
+                if (_outCallbacks.ContainsKey(current.Header))
+                    _outCallbacks[current.Header](current);
+
+                if (_outPrevious.Count > 0 && CaptureEvents)
                 {
-                    _lockedOut[packet.Header](packet);
-                    packet = null;
+                    if (LockEvents && _outLocked.ContainsKey(current.Header))
+                        _outLocked[current.Header](current);
+                    else
+                        ProcessOutgoing(current, _outPrevious.Pop());
                 }
-                else ProcessOutgoing(previousOutgoing, ref packet);
             }
-            catch { packet = null; }
             finally
             {
-                if (packet != null)
-                {
-                    packet.Position = 0;
-                    _previousOutgoing.Push(packet);
-                }
+                current.Position = 0;
+
+                if (CaptureEvents)
+                    _outPrevious.Push(current);
             }
         }
-        private void ProcessOutgoing(HMessage previous, ref HMessage current)
+        protected virtual void ProcessOutgoing(HMessage current, HMessage previous)
         {
-            int length = current.Length;
-            switch (length)
+            switch (current.Length)
             {
-                case 2:
-                {
-                    break;
-                }
-                case 4:
-                {
-                    break;
-                }
+                case 2: break;
+                case 4: break;
+
+                case 36:
                 case 6:
                 {
-                    if (previous != null)
-                    {
-                        if (previous.Length >= 28)
-                        {
-                            int position = 0;
-                            previous.ReadString(ref position);
-                            previous.ReadString(ref position);
-                            if (_gestureTypes.Contains(previous.ReadString(position)))
-                            {
-                                if (UpdateHeaders)
-                                    Outgoing.Gesture = current.Header;
-
-                                _lockedOut[current.Header] = RaiseOnHostGesture;
-                                OnHostGesture(new HostGestureEventArgs(current));
-                                current = null;
-                            }
-                        }
-                    }
-
-                    int int_value = current.ReadInt(0);
-                    switch (int_value)
-                    {
-                        case -1:
-                        {
-                            if (previous == null) break;
-
-                            if (UpdateHeaders)
-                                Outgoing.RoomExit = previous.Header;
-
-                            _lockedOut[previous.Header] = RaiseOnHostRoomExit;
-                            OnHostRoomExit(new HostRoomExitEventArgs(previous));
-                            current = null;
-                            break;
-                        }
-                    }
+                    if (TryProcessAvatarMenuClick(current, previous)) return;
+                    if (TryProcessHostRoomExit(current, previous)) return;
                     break;
                 }
-                case 10:
-                {
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
+
+                case 10: break;
+                default: break;
             }
         }
 
-        public virtual void ProcessIncoming(byte[] data)
+        public void ProcessIncoming(byte[] data)
         {
-            var packet = new HMessage(data, HDestination.Client);
-            if (_inCallbacks.Count > 0 && _inCallbacks.ContainsKey(packet.Header))
-            {
-                _inCallbacks[packet.Header](packet);
-                packet.Position = 0;
-            }
-            if (!CaptureEvents) return;
+            var current = new HMessage(data, HDestination.Client);
+            ProcessIncoming(current);
+        }
+        public void ProcessIncoming(HMessage current)
+        {
+            if (current == null || current.IsCorrupted) return;
             try
             {
-                HMessage previousIncoming = (_previousIncoming.Count > 0 ? _previousIncoming.Pop() : null);
-                if (LockEvents && _lockedIn.ContainsKey(packet.Header))
+                if (_inCallbacks.ContainsKey(current.Header))
+                    _inCallbacks[current.Header](current);
+
+                if (_inPrevious.Count > 0 && CaptureEvents)
                 {
-                    _lockedIn[packet.Header](packet);
-                    packet = null;
+                    if (LockEvents && _inLocked.ContainsKey(current.Header))
+                        _inLocked[current.Header](current);
+                    else
+                        ProcessIncoming(current, _inPrevious.Pop());
                 }
-                else ProcessIncoming(previousIncoming, ref packet);
             }
-            catch { packet = null; }
             finally
             {
-                if (packet != null)
-                {
-                    packet.Position = 0;
-                    _previousIncoming.Push(packet);
-                }
+                current.Position = 0;
+
+                if (CaptureEvents)
+                    _inPrevious.Push(current);
             }
         }
-        private void ProcessIncoming(HMessage previous, ref HMessage current)
+        protected virtual void ProcessIncoming(HMessage current, HMessage previous)
         {
-            int length = current.Length;
-            switch (length)
+            switch (current.Length)
             {
-                case 2:
-                {
-                    break;
-                }
-                case 4:
-                {
-                    break;
-                }
                 case 6:
                 {
-                    int intValue = current.ReadInt(0);
-                    switch (intValue)
+                    switch (current.ReadInt(0))
                     {
                         case 4008:
                         {
                             if (UpdateHeaders)
                                 Incoming.PlayerKickHost = current.Header;
 
-                            _lockedIn[current.Header] = RaiseOnPlayerKickHost;
+                            _inLocked[current.Header] = RaiseOnPlayerKickHost;
                             OnPlayerKickHost(new PlayerKickHostEventArgs(current));
-                            current = null;
-                            break;
+                            return;
                         }
                     }
                     break;
                 }
-                case 10:
+            }
+        }
+
+        private bool TryProcessHostRoomExit(HMessage current, HMessage previous)
+        {
+            if (previous.Length != 2 || current.ReadInt(0) != -1) return false;
+
+            if (UpdateHeaders)
+                Outgoing.RoomExit = previous.Header;
+
+            _outLocked[previous.Header] = RaiseOnHostRoomExit;
+            OnHostRoomExit(new HostRoomExitEventArgs(previous));
+            return true;
+        }
+        private bool TryProcessAvatarMenuClick(HMessage current, HMessage previous)
+        {
+            if (current.CanReadAt<string>(22) && current.ReadString(22) == "sign")
+            {
+                if (UpdateHeaders)
+                    Outgoing.RaiseSign = previous.Header;
+
+                _outLocked[previous.Header] = RaiseOnHostRaiseSign;
+                OnHostRaiseSign(new HostRaiseSignEventArgs(previous));
+                return true;
+            }
+            else if (!previous.CanReadAt<string>(22)) return false;
+
+            switch (previous.ReadString(22))
+            {
+                case "sit":
+                case "stand":
                 {
-                    break;
+                    if (UpdateHeaders)
+                        Outgoing.ChangeStance = current.Header;
+
+                    _outLocked[current.Header] = RaiseOnHostChangeStance;
+                    OnHostChangeStance(new HostChangeStanceEventArgs(current));
+                    return true;
                 }
-                default:
+
+                case "dance_stop":
+                case "dance_start":
                 {
-                    break;
+                    if (UpdateHeaders)
+                        Outgoing.Dance = current.Header;
+
+                    _outLocked[current.Header] = RaiseOnHostDance;
+                    OnHostDance(new HostDanceEventArgs(current));
+                    return true;
                 }
+
+                case "wave":
+                case "idle":
+                case "laugh":
+                case "blow_kiss":
+                {
+                    if (UpdateHeaders)
+                        Outgoing.Gesture = current.Header;
+
+                    _outLocked[current.Header] = RaiseOnHostGesture;
+                    OnHostGesture(new HostGestureEventArgs(current));
+                    return true;
+                }
+
+                default: return false;
             }
         }
 
