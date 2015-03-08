@@ -21,7 +21,7 @@ namespace Sulakore.Extensions
         /// </summary>
         public abstract string Name { get; }
         /// <summary>
-        /// Gets the name(s) of the developer(s) that wrote the extension.
+        /// Gets the name(s) of the developer(s) that worked on the extension.
         /// </summary>
         public abstract string Author { get; }
         /// <summary>
@@ -54,7 +54,7 @@ namespace Sulakore.Extensions
         /// <summary>
         /// Gets the Form that represents the extension's main GUI.
         /// </summary>
-        public SKoreExtensionForm UIContext { get; internal set; }
+        public SKoreForm UIContext { get; internal set; }
 
         protected override void Dispose(bool disposing)
         {
@@ -74,9 +74,9 @@ namespace Sulakore.Extensions
         internal void Initialize()
         {
             if (UIContext != null) { UIContext.BringToFront(); return; }
-            else if (UIContextType != null && UIContextType.BaseType == typeof(SKoreExtensionForm))
+            else if (UIContextType != null && UIContextType.BaseType == typeof(SKoreForm))
             {
-                UIContext = (SKoreExtensionForm)Activator.CreateInstance(UIContextType, this);
+                UIContext = (SKoreForm)Activator.CreateInstance(UIContextType, this);
 
                 if (UIContext.Extension == null)
                     UIContext.Extension = this;
