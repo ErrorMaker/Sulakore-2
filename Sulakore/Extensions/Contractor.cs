@@ -146,7 +146,7 @@ namespace Sulakore.Extensions
             foreach (Type extensionType in extensionTypes)
             {
                 if (extensionType.IsInterface || extensionType.IsAbstract) continue;
-                if (extensionFormType == null && extensionType.BaseType == typeof(SKoreExtensionForm))
+                if (extensionFormType == null && extensionType.BaseType == typeof(SKoreForm))
                 {
                     if (extension == null) extensionFormType = extensionType;
                     else extension.UIContextType = extensionFormType = extensionType;
