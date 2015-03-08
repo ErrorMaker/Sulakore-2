@@ -23,7 +23,6 @@ namespace Sulakore.Communication
 
             PlayerID = _packet.ReadInt(ref position);
             Message = _packet.ReadString(ref position);
-
         }
 
         public override string ToString()
