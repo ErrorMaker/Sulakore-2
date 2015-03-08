@@ -17,7 +17,7 @@ namespace Sulakore.Extensions
         /// </summary>
         string Name { get; }
         /// <summary>
-        /// Gets the name(s) of the developer(s) that wrote the extension.
+        /// Gets the name(s) of the developer(s) that worked on the extension.
         /// </summary>
         string Author { get; }
         /// <summary>
@@ -50,7 +50,7 @@ namespace Sulakore.Extensions
         /// <summary>
         /// Gets the Form that represents the extension's main GUI.
         /// </summary>
-        SKoreExtensionForm UIContext { get; }
+        SKoreForm UIContext { get; }
 
         /// <summary>
         /// Attempts to invoke a custom command with arguments.
