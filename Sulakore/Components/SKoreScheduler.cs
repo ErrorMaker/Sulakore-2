@@ -31,11 +31,23 @@ namespace Sulakore.Components
             CheckBoxes = true;
         }
 
+        public void ClearItems()
+        {
+            foreach (ListViewItem item in Items)
+                RemoveItem(item);
+        }
         protected override void RemoveItem(ListViewItem listViewItem)
         {
-            _schedules[listViewItem].Dispose();
-            _schedules.Remove(listViewItem);
-            _descriptions.Remove(listViewItem);
+            if (_schedules.ContainsKey(listViewItem))
+            {
+                HSchedule schedule = _schedules[listViewItem];
+                _items.Remove(schedule);
+
+                schedule.Dispose();
+                _schedules.Remove(listViewItem);
+
+                _descriptions.Remove(listViewItem);
+            }
 
             base.RemoveItem(listViewItem);
         }
@@ -149,8 +161,16 @@ namespace Sulakore.Components
             HSchedule schedule = _schedules[e.Item];
             e.Item.SubItems[4].Text = e.Item.Checked ? RUNNING : STOPPED;
 
-            if (e.Item.Checked) schedule.Start();
-            else schedule.Stop();
+            if (e.Item.Checked)
+            {
+                schedule.Start();
+                ++Running;
+            }
+            else if (schedule.IsRunning)
+            {
+                schedule.Stop();
+                --Running;
+            }
 
             base.OnItemChecked(e);
         }
