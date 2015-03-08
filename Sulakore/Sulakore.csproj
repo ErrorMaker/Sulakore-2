@@ -60,6 +60,7 @@
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostMutePlayerEventArgs.cs" />
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostRoomNavigateEventArgs.cs" />
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostSayEventArgs.cs" />
+    <Compile Include="Communication\Event Args\Outgoing Event Args\HostSendMessageEventArgs.cs" />
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostShoutEventArgs.cs" />
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostRaiseSignEventArgs.cs" />
     <Compile Include="Communication\Event Args\Outgoing Event Args\HostTradePlayerEventArgs.cs" />
