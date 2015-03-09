@@ -46,7 +46,7 @@ namespace Sulakore.Extensions
         {
             _currentAsmName = Assembly.GetExecutingAssembly().FullName;
         }
-        public Contractor(IHConnection connection, string playerName, HGameData gameData)
+        public Contractor(IHConnection connection, HGameData gameData)
         {
             _connection = connection;
             _installedExtensions = new List<IExtension>();
@@ -54,7 +54,7 @@ namespace Sulakore.Extensions
             _extensions = new ReadOnlyCollection<IExtension>(_installedExtensions);
 
             GameData = gameData;
-            PlayerName = playerName;
+            PlayerName = gameData.PlayerName;
 
             if (connection != null)
             {
