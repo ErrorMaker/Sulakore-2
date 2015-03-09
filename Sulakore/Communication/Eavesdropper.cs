@@ -11,7 +11,7 @@ namespace Sulakore.Communication
     public static class Eavesdropper
     {
         /// <summary>
-        /// Gets the randomly given port that the proxy is currently listening to.
+        /// Gets the port that the proxy is currently listening to.
         /// </summary>
         public static int Port { get; private set; }
 
