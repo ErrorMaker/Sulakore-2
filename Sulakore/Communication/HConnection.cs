@@ -320,18 +320,6 @@ namespace Sulakore.Communication
         public void ProcessOutgoing(byte[] data)
         {
             ++_toServerS;
-            if (_grabHeaders)
-            {
-                switch (_toServerS)
-                {
-                    case 2: Outgoing.InitiateHandshake = BigEndian.DecypherShort(data, 4); break;
-                    case 3: Outgoing.ClientPublicKey = BigEndian.DecypherShort(data, 4); break;
-                    case 4: Outgoing.FlashClientUrl = BigEndian.DecypherShort(data, 4); break;
-                    case 6: Outgoing.ClientSsoTicket = BigEndian.DecypherShort(data, 4); break;
-                    case 7: _grabHeaders = false; break;
-                }
-            }
-
             if (!RequestEncrypted)
                 Task.Factory.StartNew(() => base.ProcessOutgoing(data), TaskCreationOptions.LongRunning)
                     .ContinueWith(OnException, TaskContinuationOptions.OnlyOnFaulted);
@@ -346,6 +334,18 @@ namespace Sulakore.Communication
                 {
                     if (e.Cancel) SendToServer(e.Packet.ToBytes());
                     else if (!e.IsBlocked) SendToServer(e.Replacement.ToBytes());
+                }
+            }
+
+            if (_grabHeaders)
+            {
+                switch (_toServerS)
+                {
+                    case 2: Outgoing.InitiateHandshake = BigEndian.DecypherShort(data, 4); break;
+                    case 3: Outgoing.ClientPublicKey = BigEndian.DecypherShort(data, 4); break;
+                    case 4: Outgoing.FlashClientUrl = BigEndian.DecypherShort(data, 4); break;
+                    case 6: Outgoing.ClientSsoTicket = BigEndian.DecypherShort(data, 4); break;
+                    case 7: _grabHeaders = false; break;
                 }
             }
         }
