@@ -74,6 +74,9 @@
     <Compile Include="Components\SKoreForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Components\SKoreLabel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Components\SKoreListView.cs">
       <SubType>Component</SubType>
     </Compile>
