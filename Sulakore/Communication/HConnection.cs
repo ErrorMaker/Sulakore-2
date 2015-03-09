@@ -368,7 +368,14 @@ namespace Sulakore.Communication
 
                 if (!_hasOfficialSocket)
                 {
-                    SendToClient(data);
+                    string possiblePolicyResponse = Encoding.UTF8.GetString(data);
+                    if (possiblePolicyResponse.Contains("</cross-domain-policy>"))
+                    {
+                        possiblePolicyResponse = possiblePolicyResponse
+                            .Replace("</cross-domain-policy>",
+                            "<allow-access-from domain=\"*\" to-ports=\"*\"/>\r\n</cross-domain-policy>");
+                    }
+                    SendToClient(Encoding.UTF8.GetBytes(possiblePolicyResponse));
                     _htcpExt.BeginAcceptSocket(SocketAccepted, null);
                     return;
                 }
