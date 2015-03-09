@@ -786,7 +786,6 @@ namespace Sulakore.Habbo
         private void ConnectedToServer(IAsyncResult iAr)
         {
             _serverS.EndConnect(iAr);
-
             _serverB = new byte[1024];
 
             _receiveData = true;
@@ -819,7 +818,7 @@ namespace Sulakore.Habbo
                     int dLength = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
                     ResponseEncrypted = (dLength != data.Length - 4);
                 }
-                IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, ResponseEncrypted);
+                IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, !ResponseEncrypted);
 
                 foreach (byte[] chunk in chunks)
                 {
