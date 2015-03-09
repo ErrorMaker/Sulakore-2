@@ -345,7 +345,7 @@ namespace Sulakore.Communication
                 finally
                 {
                     if (e.Cancel) SendToServer(e.Packet.ToBytes());
-                    else if (!e.Blocked) SendToServer(e.Replacement.ToBytes());
+                    else if (!e.IsBlocked) SendToServer(e.Replacement.ToBytes());
                 }
             }
         }
@@ -406,7 +406,7 @@ namespace Sulakore.Communication
                 finally
                 {
                     if (e.Cancel) SendToClient(e.Packet.ToBytes());
-                    else if (!e.Blocked) SendToClient(e.Replacement.ToBytes());
+                    else if (!e.IsBlocked) SendToClient(e.Replacement.ToBytes());
                 }
             }
         }
