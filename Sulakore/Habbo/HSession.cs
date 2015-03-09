@@ -763,19 +763,19 @@ namespace Sulakore.Habbo
                 }
                 case HPage.Client:
                 {
-                    _host = body.GetChild("\"connection.info.host\" : \"", '\"');
-                    _port = int.Parse(body.GetChild("\"connection.info.port\" : \"", '\"').Split(',')[0]);
+                    _gameData = new HGameData(body);
+
+                    _host = _gameData.Host;
+                    _port = _gameData.Port;
+                    _userHash = _gameData.UserHash;
+                    _flashClientUrl = _gameData.FlashClientUrl;
+                    _flashClientBuild = _gameData.FlashClientBuild;
+
                     _addresses = Dns.GetHostAddresses(_host).Select(ip => ip.ToString()).ToArray();
                     _ssoTicket = body.GetChild("\"sso.ticket\" : \"", '\"');
 
-                    if (string.IsNullOrEmpty(ClientStarting)) ClientStarting = body.GetChild("\"client.starting\" : \"", '\"');
-                    else body = body.Replace(body.GetChild("\"client.starting\" : \"", '\"'), ClientStarting);
-
-                    _userHash = body.GetChild("\"user.hash\" : \"", '\"');
-                    _gameData = HGameData.Parse(body);
-
-                    _flashClientUrl = "http://" + body.GetChild("\"flash.client.url\" : \"", '\"').Substring(3) + "Habbo.swf";
-                    _flashClientBuild = _flashClientUrl.Split('/')[4];
+                    if (string.IsNullOrEmpty(ClientStarting)) ClientStarting = _gameData.ClientStarting;
+                    else body = body.Replace(_gameData.ClientStarting, ClientStarting);
 
                     body = body.Replace("\"\\//", "\"http://");
                     break;
