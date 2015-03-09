@@ -77,7 +77,7 @@ namespace Sulakore.Components
 
         public void PerformClick()
         {
-            base.OnClick(new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0));
+            base.OnClick(EventArgs.Empty);
         }
         public void NotifyDefault(bool value)
         { }
