@@ -9,6 +9,48 @@
             get { return Empty.Equals(this); }
         }
 
+        private readonly string _host;
+        public string Host
+        {
+            get { return _host; }
+        }
+
+        private readonly int _port;
+        public int Port
+        {
+            get { return _port; }
+        }
+
+        private readonly string _playerName;
+        public string PlayerName
+        {
+            get { return _playerName; }
+        }
+
+        private readonly string _clientStarting;
+        public string ClientStarting
+        {
+            get { return _clientStarting; }
+        }
+
+        private readonly string _userHash;
+        public string UserHash
+        {
+            get { return _userHash; }
+        }
+
+        private readonly string _flashClientUrl;
+        public string FlashClientUrl
+        {
+            get { return _flashClientUrl; }
+        }
+
+        private readonly string _flashClientBuild;
+        public string FlashClientBuild
+        {
+            get { return _flashClientBuild; }
+        }
+
         private readonly string _variables;
         public string Variables
         {
@@ -60,21 +102,37 @@
             return !(x == y);
         }
 
-        public HGameData(string variables, string texts, string figurePartList, string overrideTexts,
-            string overrideVariables, string productDataLoadUrl, string furniDataLoadUrl)
+        public HGameData(string clientBody)
         {
-            _variables = variables;
-            _texts = texts;
-            _figurePartList = figurePartList;
-            _overrideTexts = overrideTexts;
-            _overrideVariables = overrideVariables;
-            _productDataLoadUrl = productDataLoadUrl;
-            _furniDataLoadUrl = furniDataLoadUrl;
+            _host = clientBody.GetChild("\"connection.info.host\" : \"", '"');
+            _port = int.Parse(clientBody.GetChild("\"connection.info.port\" : \"", '"').Split(',')[0]);
+
+            _playerName = clientBody.GetChild("var habboName = \"", '"');
+            _clientStarting = clientBody.GetChild("\"client.starting\" : \"", '"');
+
+            _userHash = clientBody.GetChild("\"user.hash\" : \"", '"');
+
+            _flashClientUrl = "http://" + clientBody.GetChild("\"flash.client.url\" : \"", '"').Substring(3) + "Habbo.swf";
+            _flashClientBuild = _flashClientUrl.Split('/')[4];
+
+            _variables = clientBody.GetChild("\"external.variables.txt\" : \"", '\"');
+            _texts = clientBody.GetChild("\"external.texts.txt\" : \"", '\"');
+            _figurePartList = clientBody.GetChild("\"external.figurepartlist.txt\" : \"", '"');
+            _overrideTexts = clientBody.GetChild("\"external.override.texts.txt\" : \"", '"');
+            _overrideVariables = clientBody.GetChild("\"external.override.variables.txt\" : \"", '"');
+            _productDataLoadUrl = clientBody.GetChild("\"productdata.load.url\" : \"", '"');
+            _furniDataLoadUrl = clientBody.GetChild("\"furnidata.load.url\" : \"", '"');
         }
 
         public bool Equals(HGameData other)
         {
-            return string.Equals(_variables, other._variables)
+            return string.Equals(_host, other._host)
+                && int.Equals(_port, other._port)
+                && string.Equals(_clientStarting, other._clientStarting)
+                && string.Equals(_userHash, other._userHash)
+                && string.Equals(_flashClientUrl, other._flashClientUrl)
+                && string.Equals(_flashClientBuild, other._flashClientBuild)
+                && string.Equals(_variables, other._variables)
                 && string.Equals(_texts, other._texts)
                 && string.Equals(_figurePartList, other._figurePartList)
                 && string.Equals(_overrideTexts, other._overrideTexts)
@@ -87,7 +145,13 @@
         {
             unchecked
             {
-                int hashCode = (_variables != null ? _variables.GetHashCode() : 0);
+                int hashCode = (_host != null ? _host.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ _port.GetHashCode();
+                hashCode = (hashCode * 397) ^ (_clientStarting != null ? _clientStarting.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (_userHash != null ? _userHash.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (_flashClientUrl != null ? _flashClientUrl.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (_flashClientBuild != null ? _flashClientBuild.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (_variables != null ? _variables.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (_texts != null ? _texts.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (_figurePartList != null ? _figurePartList.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (_overrideTexts != null ? _overrideTexts.GetHashCode() : 0);
@@ -101,18 +165,6 @@
         {
             if (ReferenceEquals(null, obj)) return false;
             return obj is HGameData && Equals((HGameData)obj);
-        }
-
-        public static HGameData Parse(string clientBody)
-        {
-            string variables = clientBody.GetChild("\"external.variables.txt\" : \"", '\"');
-            string texts = clientBody.GetChild("\"external.texts.txt\" : \"", '\"');
-            string figurePartList = clientBody.GetChild("\"external.figurepartlist.txt\" : \"", '\"');
-            string overrideTexts = clientBody.GetChild("\"external.override.texts.txt\" : \"", '\"');
-            string overrideVariables = clientBody.GetChild("\"external.override.variables.txt\" : \"", '\"');
-            string productDataLoadUrl = clientBody.GetChild("\"productdata.load.url\" : \"", '\"');
-            string furniDataLoadUrl = clientBody.GetChild("\"furnidata.load.url\" : \"", '\"');
-            return new HGameData(variables, texts, figurePartList, overrideTexts, overrideVariables, productDataLoadUrl, furniDataLoadUrl);
         }
     }
 }
