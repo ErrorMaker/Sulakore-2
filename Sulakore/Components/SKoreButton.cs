@@ -66,7 +66,6 @@ namespace Sulakore.Components
         }
 
         public SKoreButton()
-            : base()
         {
             SetStyle((ControlStyles)2050, true);
             DoubleBuffered = true;
