@@ -1,8 +1,6 @@
-﻿using Sulakore.Protocol;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System;
+
+using Sulakore.Protocol;
 
 namespace Sulakore.Communication
 {
@@ -11,23 +9,22 @@ namespace Sulakore.Communication
         public readonly HMessage _packet;
 
         public ushort Header { get; private set; }
-        public int PlayerID { get; private set; }
+        public int PlayerId { get; private set; }
         public string Message { get; private set; }
 
         public HostSendMessageEventArgs(HMessage packet)
         {
             _packet = packet;
-            Header = packet.Header;
+            Header = _packet.Header;
 
-            int position = 0;
-
-            PlayerID = _packet.ReadInt(ref position);
-            Message = _packet.ReadString(ref position);
+            PlayerId = _packet.ReadInt(0);
+            Message = _packet.ReadString(4);
         }
 
         public override string ToString()
         {
-            return string.Format("Header : {0}, PlayerID : {1}, Message : {2}", Header, PlayerID, Message);
+            return string.Format("Header: {0}, PlayerId: {1}, Message: {2}",
+                Header, PlayerId, Message);
         }
     }
 }
