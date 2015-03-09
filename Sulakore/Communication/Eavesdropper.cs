@@ -87,6 +87,7 @@ namespace Sulakore.Communication
 
         private static void RequestIntercepted(IAsyncResult ar)
         {
+            bool doTerminate = false;
             bool shouldTerminate = false;
             try
             {
@@ -169,11 +170,10 @@ namespace Sulakore.Communication
 
                             OnEavesdropperResponse(e);
 
-                            if (shouldTerminate = e.ShouldTerminate)
+                            if (doTerminate = e.ShouldTerminate)
                                 IsRunning = false;
 
                             if (e.Cancel) return;
-
                             responseData = e.Payload;
                         }
 
@@ -183,6 +183,8 @@ namespace Sulakore.Communication
 
                         if (responseData != null)
                             requestSocket.Send(responseData);
+
+                        shouldTerminate = doTerminate;
                     }
                 }
             }
