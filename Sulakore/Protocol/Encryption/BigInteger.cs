@@ -125,7 +125,7 @@ namespace Sulakore.Protocol.Encryption
     /// <summary>
     /// Represents a large number.
     /// </summary>
-    public sealed class BigInteger
+    public sealed class BigInteger : IDisposable
     {
         #region Private Fields
         private uint[] _data;
@@ -1327,6 +1327,14 @@ namespace Sulakore.Protocol.Encryption
         #endregion
 
         #region Public Methods
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public void Dispose()
+        {
+            _data = null;
+        }
+
         /// <summary>
         /// Returns a string that represents the current object in the specified base.
         /// </summary>

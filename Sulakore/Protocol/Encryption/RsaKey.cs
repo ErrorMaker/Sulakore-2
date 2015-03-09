@@ -30,10 +30,10 @@
  */
 namespace Sulakore.Protocol.Encryption
 {
-    public class RsaKey
+    public class RsaKey : IDisposable
     {
         #region Private Fields
-        private static readonly Random ByteGen;
+        private static readonly Random _byteGen;
         #endregion
 
         #region Public Properties
@@ -84,7 +84,7 @@ namespace Sulakore.Protocol.Encryption
         #region Constructor(s)
         static RsaKey()
         {
-            ByteGen = new Random();
+            _byteGen = new Random();
         }
         public RsaKey(BigInteger e, BigInteger n) : this(e, n, null, null, null, null, null, null) { }
         public RsaKey(BigInteger e, BigInteger n, BigInteger d) : this(e, n, d, null, null, null, null, null) { }
@@ -113,10 +113,10 @@ namespace Sulakore.Protocol.Encryption
             int qs = bitSize >> 1;
             do
             {
-                do p = BigInteger.GenPseudoPrime(bitSize - qs, 6, ByteGen);
+                do p = BigInteger.GenPseudoPrime(bitSize - qs, 6, _byteGen);
                 while ((p - 1).Gcd(e) != 1 && !p.IsProbablePrime(10));
 
-                do q = BigInteger.GenPseudoPrime(qs, 6, ByteGen);
+                do q = BigInteger.GenPseudoPrime(qs, 6, _byteGen);
                 while ((q - 1).Gcd(e) != 1 && !q.IsProbablePrime(10) && q == p);
 
                 if (p < q)
@@ -160,7 +160,7 @@ namespace Sulakore.Protocol.Encryption
             outCome[--length] = 0;
             while (length > 2)
             {
-                byte x = (type == PKCS1PadType.RandomByte) ? (byte)ByteGen.Next(1, 256) : byte.MaxValue;
+                byte x = (type == PKCS1PadType.RandomByte) ? (byte)_byteGen.Next(1, 256) : byte.MaxValue;
                 outCome[--length] = x;
             }
             outCome[--length] = (byte)(type + 1);
@@ -242,5 +242,26 @@ namespace Sulakore.Protocol.Encryption
             return ((((xp - xq) * (Iqmp)) % P) * Q) + xq;
         }
         #endregion
+
+        public void Dispose()
+        {
+            E.Dispose();
+            N.Dispose();
+
+            if (D != null)
+                D.Dispose();
+
+            if (P != null)
+                P.Dispose();
+
+            if (Q != null)
+                Q.Dispose();
+
+            if (Dmp1 != null)
+                Dmp1.Dispose();
+
+            if (Iqmp != null)
+                Iqmp.Dispose();
+        }
     }
 }

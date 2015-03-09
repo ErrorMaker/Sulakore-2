@@ -4,11 +4,11 @@ using System.Drawing;
 
 namespace Sulakore.Protocol.Encryption
 {
-    public class HKeyExchange
+    public class HKeyExchange : IDisposable
     {
         #region Private Fields
         private readonly int _bitSize;
-        private static readonly Random ByteGen;
+        private static readonly Random _byteGen;
         #endregion
 
         #region Public Properties
@@ -69,7 +69,7 @@ namespace Sulakore.Protocol.Encryption
         #region Constructor(s)
         static HKeyExchange()
         {
-            ByteGen = new Random();
+            _byteGen = new Random();
         }
 
         public HKeyExchange(int e, string n, int bitSize = 16)
@@ -85,10 +85,10 @@ namespace Sulakore.Protocol.Encryption
 
             if (IsInitiator)
             {
-                do { DhPrime = BigInteger.GenPseudoPrime(212, 6, ByteGen); }
+                do { DhPrime = BigInteger.GenPseudoPrime(212, 6, _byteGen); }
                 while (!DhPrime.IsProbablePrime());
 
-                do { DhGenerator = BigInteger.GenPseudoPrime(212, 6, ByteGen); }
+                do { DhGenerator = BigInteger.GenPseudoPrime(212, 6, _byteGen); }
                 while (DhGenerator >= DhPrime && !DhPrime.IsProbablePrime());
 
                 if (DhGenerator > DhPrime)
@@ -220,7 +220,7 @@ namespace Sulakore.Protocol.Encryption
             string hex = string.Empty;
             for (int i = 0; i < length; i++)
             {
-                var generated = (byte)ByteGen.Next(0, 256);
+                var generated = (byte)_byteGen.Next(0, 256);
                 hex += Convert.ToString(generated, 16);
             }
             return hex;
@@ -236,5 +236,13 @@ namespace Sulakore.Protocol.Encryption
             return outcome;
         }
         #endregion
+
+        public void Dispose()
+        {
+            DhPrime.Dispose();
+            DhGenerator.Dispose();
+            DhPublic.Dispose();
+            DhPrivate.Dispose();
+        }
     }
 }
