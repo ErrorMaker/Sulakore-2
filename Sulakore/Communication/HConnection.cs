@@ -332,8 +332,8 @@ namespace Sulakore.Communication
                 catch { e.Cancel = true; }
                 finally
                 {
-                    if (e.Cancel) SendToServer(e.Packet.ToBytes());
-                    else if (!e.IsBlocked) SendToServer(e.Replacement.ToBytes());
+                    if (e.Cancel) SendToServer(data = e.Packet.ToBytes());
+                    else if (!e.IsBlocked) SendToServer(data = e.Replacement.ToBytes());
                 }
             }
 
