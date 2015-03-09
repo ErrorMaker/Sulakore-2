@@ -77,13 +77,13 @@ namespace Sulakore.Communication
             OutUnblock(header);
             _outBlockConditions.Add(header, predicate);
         }
-        //
+
         public void InUnreplace()
         {
             _inReplacers.Clear();
             _inReplacements.Clear();
         }
-        public void OuUnreplace()
+        public void OutUnreplace()
         {
             _outReplacers.Clear();
             _outReplacements.Clear();
