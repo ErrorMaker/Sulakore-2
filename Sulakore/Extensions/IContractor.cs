@@ -9,9 +9,7 @@ namespace Sulakore.Extensions
     {
         HHotel Hotel { get; }
         HFilters Filters { get; }
-        string PlayerName { get; }
         HGameData GameData { get; }
-        string FlashClientBuild { get; }
         ReadOnlyCollection<IExtension> Extensions { get; }
 
         int SendToClient(byte[] data);
