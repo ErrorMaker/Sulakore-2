@@ -27,6 +27,12 @@
             get { return _playerName; }
         }
 
+        private readonly int _playerId;
+        public int PlayerId
+        {
+            get { return _playerId; }
+        }
+
         private readonly string _clientStarting;
         public string ClientStarting
         {
@@ -108,6 +114,7 @@
             _port = int.Parse(clientBody.GetChild("\"connection.info.port\" : \"", '"').Split(',')[0]);
 
             _playerName = clientBody.GetChild("var habboName = \"", '"');
+            _playerId = int.Parse(clientBody.GetChild("var habboId = ", ';'));
             _clientStarting = clientBody.GetChild("\"client.starting\" : \"", '"');
 
             _userHash = clientBody.GetChild("\"user.hash\" : \"", '"');
@@ -128,6 +135,8 @@
         {
             return string.Equals(_host, other._host)
                 && int.Equals(_port, other._port)
+                && string.Equals(_playerName, other._playerName)
+                && int.Equals(_playerId, other._playerId)
                 && string.Equals(_clientStarting, other._clientStarting)
                 && string.Equals(_userHash, other._userHash)
                 && string.Equals(_flashClientUrl, other._flashClientUrl)
@@ -147,6 +156,8 @@
             {
                 int hashCode = (_host != null ? _host.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ _port.GetHashCode();
+                hashCode = (hashCode * 397) ^ (_playerName != null ? _playerName.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ _playerId.GetHashCode();
                 hashCode = (hashCode * 397) ^ (_clientStarting != null ? _clientStarting.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (_userHash != null ? _userHash.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (_flashClientUrl != null ? _flashClientUrl.GetHashCode() : 0);
