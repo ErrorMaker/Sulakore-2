@@ -30,11 +30,14 @@ namespace Sulakore.Extensions
         private static readonly string _currentAsmName;
         private const string ExtDirName = "Extensions";
 
+        public int ExtensionsRunning
+        {
+            get { return _runningExtensions.Count; }
+        }
+
         public HHotel Hotel { get; private set; }
         public HFilters Filters { get; private set; }
-        public string PlayerName { get; private set; }
         public HGameData GameData { get; private set; }
-        public string FlashClientBuild { get; private set; }
 
         private readonly ReadOnlyCollection<IExtension> _extensions;
         public ReadOnlyCollection<IExtension> Extensions
@@ -54,13 +57,10 @@ namespace Sulakore.Extensions
             _extensions = new ReadOnlyCollection<IExtension>(_installedExtensions);
 
             GameData = gameData;
-            PlayerName = gameData.PlayerName;
-
             if (connection != null)
             {
                 Filters = connection.Filters;
                 Hotel = SKore.ToHotel(connection.Host);
-                FlashClientBuild = _connection.FlashClientBuild;
             }
         }
 
@@ -162,7 +162,14 @@ namespace Sulakore.Extensions
                 }
             }
 
-            if (extension != null) _installedExtensions.Add(extension);
+            if (extension != null)
+            {
+                _installedExtensions.Add(extension);
+
+                object extensionResponse = extension.Invoke(this, "SHOULD_INITIALIZE");
+                if (extensionResponse != null && (bool)extensionResponse)
+                    Initialize(extension);
+            }
             else File.Delete(extensionPath);
 
             return extension;
