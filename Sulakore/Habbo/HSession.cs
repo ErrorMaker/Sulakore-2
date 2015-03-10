@@ -38,6 +38,7 @@ namespace Sulakore.Habbo
         {
             get
             {
+                if (PlayerId == 0) return false;
                 using (var webClientEx = new WebClientEx(Cookies))
                 {
                     webClientEx.Proxy = null;
