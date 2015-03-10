@@ -111,14 +111,16 @@ namespace Sulakore.Communication
         }
         public HConnection(string host, int port)
         {
+            Host = host;
+            Port = port;
+
             _filters = new HFilters();
             _resetHostLock = new object();
             _disconnectLock = new object();
             _sendToClientLock = new object();
             _sendToServerLock = new object();
 
-            Host = host;
-            Port = port;
+            EnforceHostsFile();
             ResetHost();
 
             Addresses = Dns.GetHostAddresses(host)
@@ -210,9 +212,7 @@ namespace Sulakore.Communication
         {
             if (loopback)
             {
-                if (!File.Exists(_hostsPath))
-                    File.Create(_hostsPath).Close();
-                File.SetAttributes(_hostsPath, FileAttributes.Normal);
+                EnforceHostsFile();
 
                 string[] hostsL = File.ReadAllLines(_hostsPath);
                 if (!Array.Exists(hostsL, ip => Addresses.Contains(ip)))
@@ -418,6 +418,13 @@ namespace Sulakore.Communication
             }
         }
 
+        private void EnforceHostsFile()
+        {
+            if (!File.Exists(_hostsPath))
+                File.Create(_hostsPath).Close();
+
+            File.SetAttributes(_hostsPath, FileAttributes.Normal);
+        }
         private void OnException(Task task)
         {
             Debug.WriteLine(task.Exception.ToString());
