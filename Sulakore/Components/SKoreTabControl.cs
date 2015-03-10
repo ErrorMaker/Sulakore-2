@@ -147,14 +147,5 @@ namespace Sulakore.Components
             }
             base.OnPaint(e);
         }
-        protected override void OnControlAdded(ControlEventArgs e)
-        {
-            var tabPage = e.Control as TabPage;
-
-            if (tabPage != null)
-                tabPage.BackColor = Color.White;
-
-            base.OnControlAdded(e);
-        }
     }
 }
