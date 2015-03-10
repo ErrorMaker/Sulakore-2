@@ -13,10 +13,19 @@ namespace Sulakore.Components
         private readonly System.Timers.Timer _animateTimer;
 
         private int _borderWidth = 2;
+        [DefaultValue(2)]
         public int BorderWidth
         {
             get { return _borderWidth; }
             set { _borderWidth = value; Invalidate(); }
+        }
+
+        private bool _displayBoundary;
+        [DefaultValue(false)]
+        public bool DisplayBoundary
+        {
+            get { return _displayBoundary; }
+            set { _displayBoundary = value; Invalidate(); }
         }
 
         private Color _skin = Color.SteelBlue;
@@ -72,7 +81,7 @@ namespace Sulakore.Components
             _format = format;
             _frames = frames;
 
-            FindForm().Invoke(new MethodInvoker(() => Text = string.Format(format, frames[0])));
+            FindForm().Invoke(new MethodInvoker(() => Text = string.Format(format, frames)));
             _animateTimer.Start();
         }
         private void DoAnimate(object sender, ElapsedEventArgs e)
@@ -89,11 +98,16 @@ namespace Sulakore.Components
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(Color.White);
-            using (var solidBrush = new SolidBrush(Skin))
+
+            if (DisplayBoundary)
             {
-                e.Graphics.FillRectangle(solidBrush, 0, 0, BorderWidth, Height);
-                e.Graphics.FillRectangle(solidBrush, Width - 2, 0, BorderWidth, Height);
+                using (var solidBrush = new SolidBrush(Skin))
+                {
+                    e.Graphics.FillRectangle(solidBrush, 0, 0, BorderWidth, Height);
+                    e.Graphics.FillRectangle(solidBrush, Width - BorderWidth, 0, BorderWidth, Height);
+                }
             }
+
             base.OnPaint(e);
         }
 
