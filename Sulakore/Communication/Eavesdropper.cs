@@ -73,15 +73,15 @@ namespace Sulakore.Communication
         /// </summary>
         public static void Terminate()
         {
-            while (_processingRequests > 0) Thread.Sleep(400);
-
             IsRunning = false;
             if (_listener.Active)
             {
                 _listener.Stop();
                 Port = 0;
             }
-            NativeMethods.DisableProxy();
+            else if (_processingRequests < 1)
+                NativeMethods.DisableProxy();
+
             _processingRequests = 0;
         }
 
@@ -192,7 +192,7 @@ namespace Sulakore.Communication
             finally
             {
                 --_processingRequests;
-                if (shouldTerminate)
+                if ((_processingRequests < 1 && !_listener.Active) || shouldTerminate)
                 {
                     if (_listener.Active)
                     {
@@ -248,19 +248,19 @@ namespace Sulakore.Communication
                 string header = headerPair[0],
                     value = command.GetChild(header + ": ");
 
-                switch (header)
+                switch (header.ToLower())
                 {
-                    case "Connection":
-                    case "Keep-Alive":
-                    case "Proxy-Connection": break;
+                    case "connection":
+                    case "keep-alive":
+                    case "proxy-connection": break;
 
-                    case "Host": request.Host = value; break;
-                    case "Accept": request.Accept = value; break;
-                    case "Referer": request.Referer = value; break;
-                    case "User-Agent": request.UserAgent = value; break;
-                    case "Content-type": request.ContentType = value; break;
-                    case "Content-Length": request.ContentLength = long.Parse(value); break;
-                    case "If-Modified-Since": request.IfModifiedSince = DateTime.Parse(value); break;
+                    case "host": request.Host = value; break;
+                    case "accept": request.Accept = value; break;
+                    case "referer": request.Referer = value; break;
+                    case "user-agent": request.UserAgent = value; break;
+                    case "content-type": request.ContentType = value; break;
+                    case "content-length": request.ContentLength = long.Parse(value); break;
+                    case "if-modified-since": request.IfModifiedSince = DateTime.Parse(value); break;
 
                     default: request.Headers[header] = value; break;
                 }
