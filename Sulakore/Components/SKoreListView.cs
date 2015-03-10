@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System;
+using System.Windows.Forms;
 using System.ComponentModel;
 
 namespace Sulakore.Components
@@ -114,6 +115,14 @@ namespace Sulakore.Components
             var listViewItem = new ListViewItem(items);
             FocusAdd(listViewItem);
             return listViewItem;
+        }
+
+        protected ListViewItem GetSelectedItem()
+        {
+            if (SelectedItems.Count < 1)
+                throw new Exception("No items are currently selected.");
+
+            return SelectedItems[0];
         }
 
         protected override void OnNotifyMessage(Message m)
