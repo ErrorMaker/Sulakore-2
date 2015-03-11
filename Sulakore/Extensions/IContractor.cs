@@ -8,15 +8,10 @@ namespace Sulakore.Extensions
     public interface IContractor
     {
         HHotel Hotel { get; }
-        HFilters Filters { get; }
         HGameData GameData { get; }
+        IHConnection Connection { get; }
         ReadOnlyCollection<IExtension> Extensions { get; }
-
-        int SendToClient(byte[] data);
-        int SendToClient(ushort header, params object[] chunks);
-
-        int SendToServer(byte[] data);
-        int SendToServer(ushort header, params object[] chunks);
+        ReadOnlyCollection<IExtension> ExtensionsRunning { get; }
 
         void Dispose(IExtension extension);
         object Invoke(object sender, string command, params object[] args);
