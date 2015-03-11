@@ -5,7 +5,7 @@ using Sulakore.Components;
 
 namespace Sulakore.Extensions
 {
-    public interface IExtension
+    public interface IExtension : IDisposable
     {
         /// <summary>
         /// Gets a value indicating whether the extension is running.
@@ -51,6 +51,19 @@ namespace Sulakore.Extensions
         /// Gets the Form that represents the extension's main GUI.
         /// </summary>
         SKoreForm UIContext { get; }
+
+        void Initialize();
+
+        /// <summary>
+        /// Processes all incoming data on a seperate thread.
+        /// </summary>
+        /// <param name="data">The incoming data.</param>
+        void DataToClient(byte[] data);
+        /// <summary>
+        /// Processes all outgoing data on a seperate thread.
+        /// </summary>
+        /// <param name="data">The outgoing data.</param>
+        void DataToServer(byte[] data);
 
         /// <summary>
         /// Attempts to invoke a custom command with arguments.
