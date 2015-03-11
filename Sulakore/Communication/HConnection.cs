@@ -3,7 +3,6 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Linq;
-using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -14,42 +13,34 @@ using Sulakore.Protocol.Encryption;
 
 namespace Sulakore.Communication
 {
-    public class HConnection : HTriggers, IHConnection, IDisposable
+    public class HConnection : IHConnection, IDisposable
     {
         public event EventHandler<EventArgs> Connected;
         protected virtual void OnConnected(EventArgs e)
         {
             EventHandler<EventArgs> handler = Connected;
+            if (handler != null) handler(this, e);
+        }
 
-            if (handler != null)
-                handler(this, e);
+        public event EventHandler<EventArgs> Disconnected;
+        protected virtual void OnDisconnected(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = Disconnected;
+            if (handler != null) handler(this, e);
         }
 
         public event EventHandler<DataToEventArgs> DataToClient;
         protected virtual void OnDataToClient(DataToEventArgs e)
         {
             EventHandler<DataToEventArgs> handler = DataToClient;
-
-            if (handler != null)
-                handler(this, e);
+            if (handler != null) handler(this, e);
         }
 
         public event EventHandler<DataToEventArgs> DataToServer;
         protected virtual void OnDataToServer(DataToEventArgs e)
         {
             EventHandler<DataToEventArgs> handler = DataToServer;
-
-            if (handler != null)
-                handler(this, e);
-        }
-
-        public event EventHandler<DisconnectedEventArgs> Disconnected;
-        protected virtual void OnDisconnected(DisconnectedEventArgs e)
-        {
-            EventHandler<DisconnectedEventArgs> handler = Disconnected;
-
-            if (handler != null)
-                handler(this, e);
+            if (handler != null) handler(this, e);
         }
 
         private TcpListenerEx _htcpExt;
@@ -64,6 +55,12 @@ namespace Sulakore.Communication
         public int Port { get; private set; }
         public string Host { get; private set; }
         public string[] Addresses { get; private set; }
+
+        private readonly HTriggers _triggers;
+        public HTriggers Triggers
+        {
+            get { return _triggers; }
+        }
 
         private readonly HFilters _filters;
         public HFilters Filters
@@ -115,12 +112,13 @@ namespace Sulakore.Communication
             Port = port;
 
             _filters = new HFilters();
+            _triggers = new HTriggers();
             _resetHostLock = new object();
             _disconnectLock = new object();
             _sendToClientLock = new object();
             _sendToServerLock = new object();
 
-            EnforceHostsFile();
+            EnforceHost();
             ResetHost();
 
             Addresses = Dns.GetHostAddresses(host)
@@ -188,6 +186,7 @@ namespace Sulakore.Communication
                     _serverS.Close();
                     _serverS = null;
                 }
+
                 ResetHost();
                 if (_htcpExt != null)
                 {
@@ -198,26 +197,35 @@ namespace Sulakore.Communication
                 _clientB = _serverB = _clientC = _serverC = null;
                 ClientEncrypt = ClientDecrypt = ServerEncrypt = ServerDecrypt = null;
                 _hasOfficialSocket = _grabHeaders = RequestEncrypted = ResponseEncrypted = false;
-                if (Disconnected != null)
-                {
-                    var disconnectedEventArgs = new DisconnectedEventArgs();
-                    Disconnected(this, disconnectedEventArgs);
 
-                    if (disconnectedEventArgs.UnsubscribeFromEvents)
-                        Dispose(false);
-                }
+                OnDisconnected(EventArgs.Empty);
             }
         }
-        public void Connect(bool loopback = false)
+        public void EnforceHost()
+        {
+            if (!File.Exists(_hostsPath))
+                File.Create(_hostsPath).Close();
+
+            File.SetAttributes(_hostsPath, FileAttributes.Normal);
+        }
+
+        public void Connect()
+        {
+            EnforceHost();
+            Connect(false);
+        }
+        public void Connect(bool loopback)
         {
             if (loopback)
             {
-                EnforceHostsFile();
-
-                string[] hostsL = File.ReadAllLines(_hostsPath);
-                if (!Array.Exists(hostsL, ip => Addresses.Contains(ip)))
+                string[] lines = File.ReadAllLines(_hostsPath);
+                if (!Array.Exists(lines, ip => Addresses.Contains(ip)))
                 {
-                    List<string> gameIPs = Addresses.ToList(); if (!gameIPs.Contains(Host)) gameIPs.Add(Host);
+                    List<string> gameIPs = Addresses.ToList();
+
+                    if (!gameIPs.Contains(Host))
+                        gameIPs.Add(Host);
+
                     string mapping = string.Format("127.0.0.1\t\t{{0}}\t\t#{0}[{{1}}/{1}]", Host, gameIPs.Count);
                     File.AppendAllLines(_hostsPath, gameIPs.Select(ip => string.Format(mapping, ip, gameIPs.IndexOf(ip) + 1)));
                 }
@@ -291,6 +299,7 @@ namespace Sulakore.Communication
                         ResetHost();
                         _htcpExt.Stop();
                         _htcpExt = null;
+
                         OnConnected(EventArgs.Empty);
                     }
                     else
@@ -317,12 +326,12 @@ namespace Sulakore.Communication
             }
             catch { Disconnect(); }
         }
-        public void ProcessOutgoing(byte[] data)
+        private void ProcessOutgoing(byte[] data)
         {
             ++_toServerS;
             if (!RequestEncrypted)
-                Task.Factory.StartNew(() => base.ProcessOutgoing(data), TaskCreationOptions.LongRunning)
-                    .ContinueWith(OnException, TaskContinuationOptions.OnlyOnFaulted);
+                Task.Factory.StartNew(() =>
+                    Triggers.ProcessOutgoing(data), TaskCreationOptions.LongRunning);
 
             if (DataToServer == null) SendToServer(data);
             else
@@ -385,8 +394,8 @@ namespace Sulakore.Communication
 
                 if (_toClientS == 2)
                 {
-                    int dLength = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
-                    ResponseEncrypted = (dLength != data.Length - 4);
+                    length = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
+                    ResponseEncrypted = (length != data.Length - 4);
                 }
                 IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, !ResponseEncrypted);
 
@@ -397,12 +406,12 @@ namespace Sulakore.Communication
             }
             catch { Disconnect(); }
         }
-        public void ProcessIncoming(byte[] data)
+        private void ProcessIncoming(byte[] data)
         {
             ++_toClientS;
             if (!ResponseEncrypted)
-                Task.Factory.StartNew(() => base.ProcessIncoming(data), TaskCreationOptions.LongRunning)
-                    .ContinueWith(OnException, TaskContinuationOptions.OnlyOnFaulted);
+                Task.Factory.StartNew(() =>
+                    Triggers.ProcessIncoming(data), TaskCreationOptions.LongRunning);
 
             if (DataToClient == null) SendToClient(data);
             else
@@ -418,19 +427,11 @@ namespace Sulakore.Communication
             }
         }
 
-        private void EnforceHostsFile()
+        public void Dispose()
         {
-            if (!File.Exists(_hostsPath))
-                File.Create(_hostsPath).Close();
-
-            File.SetAttributes(_hostsPath, FileAttributes.Normal);
+            Dispose(true);
         }
-        private void OnException(Task task)
-        {
-            Debug.WriteLine(task.Exception.ToString());
-        }
-
-        protected override void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             SKore.Unsubscribe(ref Connected);
             SKore.Unsubscribe(ref DataToClient);
@@ -445,10 +446,9 @@ namespace Sulakore.Communication
                 Addresses = null;
                 Port = SocketSkip = 0;
                 FlashClientBuild = string.Empty;
-                CaptureEvents = LockEvents = false;
-            }
 
-            base.Dispose(disposing);
+                Triggers.Dispose();
+            }
         }
     }
 }
