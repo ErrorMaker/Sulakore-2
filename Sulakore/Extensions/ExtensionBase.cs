@@ -9,13 +9,8 @@ using Sulakore.Communication;
 
 namespace Sulakore.Extensions
 {
-    public abstract class ExtensionBase : HTriggers, IExtension
+    public abstract class ExtensionBase : IExtension
     {
-        /// <summary>
-        /// Gets a value indicating whether the extension is running.
-        /// </summary>
-        public bool IsRunning { get; internal set; }
-
         /// <summary>
         /// Gets the name of the extension given by the Author.
         /// </summary>
@@ -24,6 +19,10 @@ namespace Sulakore.Extensions
         /// Gets the name(s) of the developer(s) that worked on the extension.
         /// </summary>
         public abstract string Author { get; }
+        /// <summary>
+        /// Gets a value indicating whether the extension is running.
+        /// </summary>
+        public bool IsRunning { get; internal set; }
         /// <summary>
         /// Gets the file location of the extension from which the instance was initialized from.
         /// </summary>
@@ -37,15 +36,19 @@ namespace Sulakore.Extensions
         /// Gets the assembly version of the extension.
         /// </summary>
         public Version Version { get; internal set; }
-
         /// <summary>
-        /// Gets the IContractor instance used for communication between the initializer.
+        /// Gets the HTriggers instance associated with the extension.
         /// </summary>
-        public IContractor Contractor { get; internal set; }
+        public HTriggers Triggers { get; protected internal set; }
+
         /// <summary>
         /// Gets or sets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).
         /// </summary>
         public ExtensionPriority Priority { get; set; }
+        /// <summary>
+        /// Gets the IContractor instance used for communication between the initializer.
+        /// </summary>
+        public IContractor Contractor { get; internal set; }
 
         /// <summary>
         /// Gets the Type found in the extension's project scope that inherits from SKoreExtensionForm.
@@ -56,22 +59,21 @@ namespace Sulakore.Extensions
         /// </summary>
         public SKoreForm UIContext { get; internal set; }
 
-        protected override void Dispose(bool disposing)
+        public void Dispose()
         {
             IsRunning = false;
-            base.Dispose(disposing);
-
-            OnDisposed();
             if (UIContext != null)
             {
                 UIContext.FormClosed -= UIContext_FormClosed;
                 UIContext.Close();
                 UIContext = null;
             }
+            Triggers.Dispose();
+            OnDisposed();
         }
         protected abstract void OnDisposed();
 
-        internal void Initialize()
+        void IExtension.Initialize()
         {
             if (UIContext != null) { UIContext.BringToFront(); return; }
             else if (UIContextType != null && UIContextType.BaseType == typeof(SKoreForm))
@@ -110,19 +112,19 @@ namespace Sulakore.Extensions
             return null;
         }
 
-        internal void DataToClient(byte[] data)
+        void IExtension.DataToClient(byte[] data)
         {
             var packet = new HMessage(data, HDestination.Client);
-            base.ProcessIncoming(packet);
+            Triggers.ProcessIncoming(packet);
 
             OnDataToClient(packet);
         }
         protected abstract void OnDataToClient(HMessage packet);
 
-        internal void DataToServer(byte[] data)
+        void IExtension.DataToServer(byte[] data)
         {
             var packet = new HMessage(data, HDestination.Server);
-            base.ProcessOutgoing(packet);
+            Triggers.ProcessOutgoing(packet);
 
             OnDataToServer(packet);
         }
