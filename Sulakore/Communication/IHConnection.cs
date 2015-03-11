@@ -7,9 +7,9 @@ namespace Sulakore.Communication
     public interface IHConnection
     {
         event EventHandler<EventArgs> Connected;
+        event EventHandler<EventArgs> Disconnected;
         event EventHandler<DataToEventArgs> DataToClient;
         event EventHandler<DataToEventArgs> DataToServer;
-        event EventHandler<DisconnectedEventArgs> Disconnected;
 
         int Port { get; }
         string Host { get; }
