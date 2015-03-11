@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 using Sulakore.Habbo;
-using Sulakore.Protocol;
 using Sulakore.Components;
 using Sulakore.Communication;
 
@@ -15,6 +14,12 @@ namespace Sulakore.Extensions
 {
     public class Contractor : IContractor
     {
+        private readonly IHConnection _connection;
+        private readonly List<IExtension> _extensions, _extensionsRunning;
+
+        private static readonly string _currentAsmName;
+        private const string EXTENSIONS_DIRECTORY = "Extensions";
+
         public event EventHandler<InvokedEventArgs> Invoked;
         protected virtual object OnInvoked(InvokedEventArgs e)
         {
@@ -23,27 +28,11 @@ namespace Sulakore.Extensions
             return e.Result;
         }
 
-        private readonly IHConnection _connection;
-        private readonly IList<IExtension> _installedExtensions;
-        private readonly IList<ExtensionBase> _runningExtensions;
-
-        private static readonly string _currentAsmName;
-        private const string ExtDirName = "Extensions";
-
-        public int ExtensionsRunning
-        {
-            get { return _runningExtensions.Count; }
-        }
-
         public HHotel Hotel { get; private set; }
-        public HFilters Filters { get; private set; }
         public HGameData GameData { get; private set; }
-
-        private readonly ReadOnlyCollection<IExtension> _extensions;
-        public ReadOnlyCollection<IExtension> Extensions
-        {
-            get { return _extensions; }
-        }
+        public IHConnection Connection { get; private set; }
+        public ReadOnlyCollection<IExtension> Extensions { get; private set; }
+        public ReadOnlyCollection<IExtension> ExtensionsRunning { get; private set; }
 
         static Contractor()
         {
@@ -52,50 +41,52 @@ namespace Sulakore.Extensions
         public Contractor(IHConnection connection, HGameData gameData)
         {
             _connection = connection;
-            _installedExtensions = new List<IExtension>();
-            _runningExtensions = new List<ExtensionBase>();
-            _extensions = new ReadOnlyCollection<IExtension>(_installedExtensions);
+
+            _extensions = new List<IExtension>();
+            Extensions = new ReadOnlyCollection<IExtension>(_extensions);
+
+            _extensionsRunning = new List<IExtension>();
+            ExtensionsRunning = new ReadOnlyCollection<IExtension>(_extensionsRunning);
 
             GameData = gameData;
             if (connection != null)
-            {
-                Filters = connection.Filters;
                 Hotel = SKore.ToHotel(connection.Host);
-            }
-        }
-
-        public int SendToClient(byte[] data)
-        {
-            return _connection.SendToClient(data);
-        }
-        public int SendToClient(ushort header, params object[] chunks)
-        {
-            return _connection.SendToClient(HMessage.Construct(header, chunks));
-        }
-
-        public int SendToServer(byte[] data)
-        {
-            return _connection.SendToServer(data);
-        }
-        public int SendToServer(ushort header, params object[] chunks)
-        {
-            return _connection.SendToServer(HMessage.Construct(header, chunks));
         }
 
         public void ProcessIncoming(byte[] data)
         {
-            if (_installedExtensions.Count < 1) return;
-            foreach (ExtensionBase extension in _runningExtensions)
+            if (_extensionsRunning.Count < 1) return;
+
+            IExtension[] extensionsRunning = _extensionsRunning.ToArray();
+            foreach (IExtension extension in extensionsRunning)
             {
+                if (!extension.IsRunning)
+                {
+                    if (_extensionsRunning.Contains(extension))
+                        _extensionsRunning.Remove(extension);
+
+                    continue;
+                }
+
                 Task.Factory.StartNew(() => extension.DataToClient(data),
                     (TaskCreationOptions)(extension.Priority == ExtensionPriority.Normal ? 0 : 2));
             }
         }
         public void ProcessOutgoing(byte[] data)
         {
-            if (_installedExtensions.Count < 1) return;
-            foreach (ExtensionBase extension in _runningExtensions)
+            if (_extensionsRunning.Count < 1) return;
+
+            IExtension[] extensionsRunning = new List<IExtension>(_extensionsRunning).ToArray();
+            foreach (IExtension extension in extensionsRunning)
             {
+                if (!extension.IsRunning)
+                {
+                    if (_extensionsRunning.Contains(extension))
+                        _extensionsRunning.Remove(extension);
+
+                    continue;
+                }
+
                 Task.Factory.StartNew(() => extension.DataToServer(data),
                     (TaskCreationOptions)(extension.Priority == ExtensionPriority.Normal ? 0 : 2));
             }
@@ -103,21 +94,19 @@ namespace Sulakore.Extensions
 
         public void Dispose(IExtension extension)
         {
-            var ext = (extension as ExtensionBase);
-            if (ext != null) ext.Dispose();
-            else extension.Invoke(this, "Dispose");
+            extension.Dispose();
 
-            if (!extension.IsRunning && _runningExtensions.Contains(ext))
-                _runningExtensions.Remove(ext);
+            // TODO: Remove redundent 'IsRunning' check, although we need to make sure of a few things first.
+            if (!extension.IsRunning && _extensionsRunning.Contains(extension))
+                _extensionsRunning.Remove(extension);
         }
         public void Initialize(IExtension extension)
         {
-            var ext = (extension as ExtensionBase);
-            if (ext != null) ext.Initialize();
-            else extension.Invoke(this, "Initialize");
+            extension.Initialize();
 
-            if (extension.IsRunning && !_runningExtensions.Contains(ext))
-                _runningExtensions.Add(ext);
+            // TODO: Remove redundent 'IsRunning' check, although we need to make sure of a few things first.
+            if (extension.IsRunning && !_extensionsRunning.Contains(extension))
+                _extensionsRunning.Add(extension);
         }
 
         public ExtensionBase Install(string path)
@@ -126,15 +115,15 @@ namespace Sulakore.Extensions
                 return null;
 
             ExtensionBase extension = null;
-            if (!Directory.Exists(ExtDirName))
-                Directory.CreateDirectory(ExtDirName);
+            if (!Directory.Exists(EXTENSIONS_DIRECTORY))
+                Directory.CreateDirectory(EXTENSIONS_DIRECTORY);
 
             string extensionPath = path;
-            if (!File.Exists(Path.Combine(Environment.CurrentDirectory, ExtDirName, Path.GetFileName(path))))
+            if (!File.Exists(Path.Combine(Environment.CurrentDirectory, EXTENSIONS_DIRECTORY, Path.GetFileName(path))))
             {
                 string extensionId = Guid.NewGuid().ToString();
                 string extensionName = Path.GetFileNameWithoutExtension(path);
-                extensionPath = Path.Combine(Environment.CurrentDirectory, ExtDirName, string.Format("{0}({1}).dll", extensionName, extensionId));
+                extensionPath = Path.Combine(Environment.CurrentDirectory, EXTENSIONS_DIRECTORY, string.Format("{0}({1}).dll", extensionName, extensionId));
                 File.Copy(path, extensionPath);
             }
 
@@ -157,6 +146,7 @@ namespace Sulakore.Extensions
                     extension = (ExtensionBase)Activator.CreateInstance(extensionType);
                     extension.Contractor = this;
                     extension.Location = extensionPath;
+                    extension.Triggers = new HTriggers();
                     extension.UIContextType = extensionFormType;
                     extension.Version = new Version(FileVersionInfo.GetVersionInfo(extensionPath).FileVersion);
                 }
@@ -164,7 +154,7 @@ namespace Sulakore.Extensions
 
             if (extension != null)
             {
-                _installedExtensions.Add(extension);
+                _extensions.Add(extension);
 
                 object extensionResponse = extension.Invoke(this, "SHOULD_INITIALIZE");
                 if (extensionResponse != null && (bool)extensionResponse)
@@ -180,7 +170,9 @@ namespace Sulakore.Extensions
                 File.Delete(extension.Location);
 
             Dispose(extension);
-            _installedExtensions.Remove(extension);
+
+            if (_extensions.Contains(extension))
+                _extensions.Remove(extension);
         }
 
         public object Invoke(object invoker, string command, params object[] args)
