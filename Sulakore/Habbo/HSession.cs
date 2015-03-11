@@ -14,24 +14,43 @@ using Sulakore.Protocol.Encryption;
 
 namespace Sulakore.Habbo
 {
-    public sealed class HSession : IHConnection, IDisposable
+    public class HSession : IHConnection, IDisposable
     {
-        #region Connection Events
         public event EventHandler<EventArgs> Connected;
-        public event EventHandler<DataToEventArgs> DataToServer;
-        public event EventHandler<DataToEventArgs> DataToClient;
-        public event EventHandler<DisconnectedEventArgs> Disconnected;
-        #endregion
+        protected virtual void OnConnected(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = Connected;
+            if (handler != null) handler(this, e);
+        }
 
-        #region Private Fields
+        public event EventHandler<EventArgs> Disconnected;
+        protected virtual void OnDisconnected(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = Disconnected;
+            if (handler != null) handler(this, e);
+        }
+
+        public event EventHandler<DataToEventArgs> DataToServer;
+        protected virtual void OnDataToServer(DataToEventArgs e)
+        {
+            EventHandler<DataToEventArgs> handler = DataToServer;
+            if (handler != null) handler(this, e);
+        }
+
+        public event EventHandler<DataToEventArgs> DataToClient;
+        protected virtual void OnDataToClient(DataToEventArgs e)
+        {
+            EventHandler<DataToEventArgs> handler = DataToClient;
+            if (handler != null) handler(this, e);
+        }
+
         private Socket _serverS;
         private byte[] _serverB, _serverC;
+        private bool _disconnectedAllowed;
         private int _toClientS, _toServerS;
 
-        private readonly Encoding _encoding;
-        private readonly object _disconnectLock;
         private readonly Uri _httpHotelUri, _httpsHotelUri;
-        #endregion
+        private readonly object _disconnectLock, _sendToServerLock, _sendToClientLock;
 
         #region Public Properties
         public bool IsLoggedIn
@@ -39,6 +58,7 @@ namespace Sulakore.Habbo
             get
             {
                 if (PlayerId == 0) return false;
+                if (IsConnected) return true;
                 using (var webClientEx = new WebClientEx(Cookies))
                 {
                     webClientEx.Proxy = null;
@@ -212,13 +232,17 @@ namespace Sulakore.Habbo
         public bool EmailVerified { get; private set; }
         public CookieContainer Cookies { get; private set; }
 
-        Rc4 IHConnection.ServerEncrypt { get; set; }
-        public Rc4 ServerDecrypt { get; set; }
+        private readonly HTriggers _triggers;
+        public HTriggers Triggers
+        {
+            get { return _triggers; }
+        }
 
-        public Rc4 ClientEncrypt { get; set; }
-        Rc4 IHConnection.ClientDecrypt { get; set; }
-
-        public HFilters Filters { get; private set; }
+        private readonly HFilters _filters;
+        public HFilters Filters
+        {
+            get { return _filters; }
+        }
 
         private HGameData _gameData;
         public HGameData GameData
@@ -296,34 +320,12 @@ namespace Sulakore.Habbo
                 return _ssoTicket;
             }
         }
-
-        private bool _receiveData;
-        public bool ReceiveData
-        {
-            get { return _receiveData; }
-            set
-            {
-                if (!IsConnected) _receiveData = false;
-                else if (_receiveData != value)
-                {
-                    bool wasReceiving = _receiveData;
-                    _receiveData = value;
-                    if (!wasReceiving) ReadServerData();
-                }
-            }
-        }
-
-        public bool IsConnected
-        {
-            get { return _serverS != null && _serverS.Connected; }
-        }
-
-        bool IHConnection.RequestEncrypted
-        {
-            get { return false; }
-        }
-        public bool ResponseEncrypted { get; private set; }
         #endregion
+
+        public string this[HPage page]
+        {
+            get { return LoadResource(page); }
+        }
 
         static HSession()
         {
@@ -338,7 +340,11 @@ namespace Sulakore.Habbo
             Hotel = hotel;
 
             _disconnectLock = new object();
-            _encoding = new UTF8Encoding();
+            _sendToClientLock = new object();
+            _sendToServerLock = new object();
+
+            _filters = new HFilters();
+            _triggers = new HTriggers();
 
             _httpHotelUri = new Uri(Hotel.ToUrl());
             _httpsHotelUri = new Uri(Hotel.ToUrl(true));
@@ -346,20 +352,15 @@ namespace Sulakore.Habbo
             Cookies = new CookieContainer();
         }
 
-        public string this[HPage page]
-        {
-            get { return LoadResource(page); }
-        }
-
         public bool Login()
         {
-            Dispose();
+            ClearCookies();
             Cookies.SetCookies(_httpHotelUri, SKore.GetIpCookie(Hotel));
             Cookies.SetCookies(_httpHotelUri, "cvid_token=1");
 
             try
             {
-                byte[] postData = _encoding.GetBytes(string.Format("credentials.username={0}&credentials.password={1}", Email, Password));
+                byte[] postData = Encoding.UTF8.GetBytes(string.Format("credentials.username={0}&credentials.password={1}", Email, Password));
                 var loginRequest = (HttpWebRequest)WebRequest.Create(string.Format("{0}/account/submit", _httpsHotelUri.OriginalString));
                 loginRequest.ContentType = "application/x-www-form-urlencoded";
                 loginRequest.UserAgent = SKore.ChromeAgent;
@@ -424,7 +425,7 @@ namespace Sulakore.Habbo
                     {
                         EmailVerified = !isEmailVer;
 
-                        postData = _encoding.GetBytes(isTos ? "termsSelection=true" : "email=&skipEmailChange=true");
+                        postData = Encoding.UTF8.GetBytes(isTos ? "termsSelection=true" : "email=&skipEmailChange=true");
                         var termsOfServiceRequest = (HttpWebRequest)WebRequest.Create(string.Format("{0}/account/updateIdentityProfile{1}",
                             _httpsHotelUri.OriginalString, isTos ? "Terms" : "Email"));
 
@@ -485,37 +486,32 @@ namespace Sulakore.Habbo
             catch (WebException) { return false; }
             return false;
         }
-        public Task<bool> LoginAsync()
-        {
-            return Task.Factory.StartNew(() => Login());
-        }
 
         public void AddFriend(int playerId)
         {
             var formData = new NameValueCollection(1);
             formData.Add("accountId", playerId.ToString());
 
-            DoXMLRequest(formData, _httpHotelUri.OriginalString + "/myhabbo/friends/add");
+            DoRequest(formData, _httpHotelUri.OriginalString + "/myhabbo/friends/add");
         }
-        public Task AddFriendAsync(int playerId)
-        {
-            return Task.Factory.StartNew(() => AddFriend(playerId));
-        }
-
         public void RemoveFriend(int playerId)
         {
             var formData = new NameValueCollection(2);
             formData.Add("friendId", playerId.ToString());
             formData.Add("pageSize", "30");
 
-            DoXMLRequest(formData, _httpsHotelUri.OriginalString + "/friendmanagement/ajax/deletefriends");
+            DoRequest(formData, _httpsHotelUri.OriginalString + "/friendmanagement/ajax/deletefriends");
 
         }
-        public Task RemoveFriendAsync(int playerId)
+        public void DownloadClient(string path)
         {
-            return Task.Factory.StartNew(() => RemoveFriend(playerId));
+            using (var webClientEx = new WebClientEx(Cookies))
+            {
+                webClientEx.Proxy = null;
+                webClientEx.Headers["User-Agent"] = SKore.ChromeAgent;
+                webClientEx.DownloadFile(FlashClientUrl, path);
+            }
         }
-
         public void UpdateProfile(string motto, bool homepageVisible, bool friendRequestAllowed, bool showOnlineStatus, bool offlineMessaging, bool friendsCanFollow)
         {
             var formData = new NameValueCollection(9);
@@ -529,189 +525,7 @@ namespace Sulakore.Habbo
             formData.Add("persistentMessagingAllowed", offlineMessaging.ToString().ToLower());
             formData.Add("followFriendMode", Convert.ToByte(friendsCanFollow).ToString());
 
-            DoXMLRequest(formData, _httpsHotelUri.OriginalString + "/profile/profileupdate");
-        }
-        public Task UpdateProfileAsync(string motto, bool homepageVisible, bool friendRequestAllowed, bool showOnlineStatus, bool offlineMessaging, bool friendsCanFollow)
-        {
-            return Task.Factory.StartNew(() => UpdateProfile(motto, homepageVisible, friendRequestAllowed, showOnlineStatus, offlineMessaging, friendsCanFollow));
-        }
-
-        public string RenewTicket()
-        {
-            LoadResource(HPage.Client);
-            return _ssoTicket;
-        }
-        public Task<string> RenewTicketAsync()
-        {
-            return Task.Factory.StartNew(() => RenewTicket());
-        }
-
-        public void DownloadClient(string path)
-        {
-            using (var webClientEx = new WebClientEx(Cookies))
-            {
-                webClientEx.Proxy = null;
-                webClientEx.Headers["User-Agent"] = SKore.ChromeAgent;
-                webClientEx.DownloadFile(FlashClientUrl, path);
-            }
-        }
-        public Task DownloadClientAsync(string path)
-        {
-            return Task.Factory.StartNew(() => DownloadClient(path));
-        }
-
-        public void Connect()
-        {
-            _serverS = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            _serverS.BeginConnect(Addresses[0], Port, ConnectedToServer, null);
-        }
-        public void Disconnect(bool dispose = true)
-        {
-            lock (_disconnectLock)
-            {
-                if (_serverS == null) return;
-
-                _serverS.Shutdown(SocketShutdown.Both);
-                _serverS.Dispose();
-                _serverS = null;
-
-                _receiveData = false;
-                _serverB = _serverC = null;
-                _toClientS = _toServerS = 0;
-
-                if (Disconnected != null && !dispose)
-                {
-                    var disconnectedEventArgs = new DisconnectedEventArgs();
-                    Disconnected(this, disconnectedEventArgs);
-                    dispose = disconnectedEventArgs.UnsubscribeFromEvents;
-                }
-
-                if (dispose)
-                {
-                    SKore.Unsubscribe(ref Connected);
-                    SKore.Unsubscribe(ref DataToClient);
-                    SKore.Unsubscribe(ref DataToServer);
-                    SKore.Unsubscribe(ref Disconnected);
-                }
-            }
-        }
-
-        public int SendToServer(ushort header, params object[] chunks)
-        {
-            return SendToServer(HMessage.Construct(header, chunks));
-        }
-        public Task<int> SendToServerAsync(ushort header, params object[] chunks)
-        {
-            return Task.Factory.StartNew(() => SendToServer(header, chunks));
-        }
-
-        public int SendToServer(byte[] data)
-        {
-            if (IsConnected)
-            {
-                if (DataToServer != null)
-                {
-                    try { DataToServer(this, new DataToEventArgs(data, HDestination.Server, ++_toServerS)); }
-                    catch { }
-                }
-
-                if (ClientEncrypt != null)
-                    data = ClientEncrypt.SafeParse(data);
-
-                try { _serverS.Send(data); }
-                catch { Disconnect(); return 0; }
-
-                return data.Length;
-            }
-            return 0;
-        }
-        public Task<int> SendToServerAsync(byte[] data)
-        {
-            return Task.Factory.StartNew(() => SendToServer(data));
-        }
-
-        int IHConnection.SendToClient(byte[] data)
-        { return 0; }
-
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                int hashCode = (Email != null ? Email.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ Hotel.GetHashCode();
-                return hashCode;
-            }
-        }
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            return obj is HSession && Equals((HSession)obj);
-        }
-        public bool Equals(HSession other)
-        {
-            return string.Equals(Email, other.Email) && Enum.Equals(Hotel, other.Hotel);
-        }
-
-        public void Refresh()
-        {
-            _urlToken = string.Empty;
-            _csrfToken = string.Empty;
-            _playerName = string.Empty;
-            _lastSignIn = string.Empty;
-            _createdOn = string.Empty;
-            _userHash = string.Empty;
-            _motto = string.Empty;
-            _homepageVisible = false;
-            _friendRequestAllowed = false;
-            _showOnlineStatus = false;
-            _offlineMessaging = false;
-            _friendsCanFollow = false;
-            _gender = HGender.Unknown;
-            _age = 0;
-            ClientStarting = string.Empty;
-            _gameData = HGameData.Empty;
-            _flashClientBuild = string.Empty;
-            _flashClientUrl = string.Empty;
-            _port = 0;
-            _host = string.Empty;
-            _addresses = null;
-            _ssoTicket = string.Empty;
-        }
-        public void Dispose()
-        {
-            var cookies = Cookies.GetCookies(_httpHotelUri);
-            foreach (Cookie cookie in cookies) cookie.Expired = true;
-
-            Refresh();
-            Disconnect();
-        }
-
-        private void LogStep(string step)
-        {
-            var formData = new NameValueCollection(1);
-            formData.Add("step", step);
-
-            DoXMLRequest(formData, _httpsHotelUri.OriginalString + "/new-user-reception/log-step");
-        }
-        private void ClientlogUpdate(string flashStep)
-        {
-            var formData = new NameValueCollection(1);
-            formData.Add("flashStep", flashStep);
-
-            DoXMLRequest(formData, _httpsHotelUri.OriginalString + "/clientlog/update");
-        }
-        private void DoXMLRequest(NameValueCollection formData, string address)
-        {
-            using (var webClientEx = new WebClientEx(Cookies))
-            {
-                webClientEx.Proxy = null;
-                webClientEx.Headers["X-App-Key"] = CsrfToken;
-                webClientEx.Headers["User-Agent"] = SKore.ChromeAgent;
-                webClientEx.Headers["Referer"] = _httpsHotelUri.OriginalString + "/client";
-
-                if (formData != null) webClientEx.UploadValues(address, "POST", formData);
-                else webClientEx.DownloadString(address);
-            }
+            DoRequest(formData, _httpsHotelUri.OriginalString + "/profile/profileupdate");
         }
 
         private string LoadResource(HPage page)
@@ -727,6 +541,12 @@ namespace Sulakore.Habbo
                 HandleResource(page, ref body);
                 return body;
             }
+        }
+
+        private void ClearCookies()
+        {
+            var cookies = Cookies.GetCookies(_httpHotelUri);
+            foreach (Cookie cookie in cookies) cookie.Expired = true;
         }
         private void HandleResource(HPage page, ref string body)
         {
@@ -783,21 +603,160 @@ namespace Sulakore.Habbo
                 }
             }
         }
-
-        private void ConnectedToServer(IAsyncResult iAr)
+        private void DoRequest(NameValueCollection formData, string address)
         {
-            _serverS.EndConnect(iAr);
-            _serverB = new byte[1024];
+            using (var webClientEx = new WebClientEx(Cookies))
+            {
+                webClientEx.Proxy = null;
+                webClientEx.Headers["X-App-Key"] = CsrfToken;
+                webClientEx.Headers["User-Agent"] = SKore.ChromeAgent;
+                webClientEx.Headers["Referer"] = _httpsHotelUri.OriginalString + "/client";
 
-            _receiveData = true;
-            ReadServerData();
-
-            if (Connected != null)
-                Connected(this, EventArgs.Empty);
+                if (formData != null) webClientEx.UploadValues(address, "POST", formData);
+                else webClientEx.DownloadString(address);
+            }
         }
+
+        public override string ToString()
+        {
+            return string.Format("{0}:{1}:{2}", Email, Password, Hotel.ToDomain());
+        }
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hashCode = (Email != null ? Email.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ Hotel.GetHashCode();
+                return hashCode;
+            }
+        }
+        public bool Equals(HSession other)
+        {
+            return string.Equals(Email, other.Email) && Enum.Equals(Hotel, other.Hotel);
+        }
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            return obj is HSession && Equals((HSession)obj);
+        }
+
+        public void Dispose()
+        {
+            ClearCookies();
+
+            Disconnect();
+            SKore.Unsubscribe(ref Connected);
+            SKore.Unsubscribe(ref Disconnected);
+            SKore.Unsubscribe(ref DataToClient);
+            SKore.Unsubscribe(ref DataToServer);
+        }
+
+        #region IHConnection Implementation
+        public Rc4 ServerEncrypt { get; set; }
+        public Rc4 ServerDecrypt { get; set; }
+
+        public Rc4 ClientEncrypt { get; set; }
+        public Rc4 ClientDecrypt { get; set; }
+
+        public bool RequestEncrypted
+        {
+            get { return false; }
+        }
+        public bool ResponseEncrypted { get; private set; }
+
+        private bool _receiveData;
+        public bool ReceiveData
+        {
+            get { return _receiveData && IsConnected; }
+            set
+            {
+                if (!IsConnected) _receiveData = false;
+                else if (_receiveData != value)
+                {
+                    bool wasReceiving = _receiveData;
+                    _receiveData = value;
+
+                    if (!wasReceiving)
+                        ReadServerData();
+                }
+            }
+        }
+
+        public bool IsConnected
+        {
+            get { return _serverS != null && _serverS.Connected; }
+        }
+
+        public void Connect()
+        {
+            _disconnectedAllowed = true;
+            _serverS = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _serverS.BeginConnect(Addresses[0], Port, ConnectedToServer, null);
+        }
+        public void Disconnect()
+        {
+            if (!_disconnectedAllowed) return;
+            _disconnectedAllowed = false;
+
+            lock (_disconnectLock)
+            {
+                if (_serverS != null)
+                {
+                    _serverS.Shutdown(SocketShutdown.Both);
+                    _serverS.Dispose();
+                    _serverS = null;
+                }
+
+                _receiveData = false;
+                _serverB = _serverC = null;
+                _toClientS = _toServerS = 0;
+
+                OnDisconnected(EventArgs.Empty);
+            }
+        }
+
+        public int SendToServer(byte[] data)
+        {
+            if (!IsConnected) return 0;
+            try
+            {
+                lock (_sendToServerLock)
+                {
+                    OnDataToServer(new DataToEventArgs(data, HDestination.Server, ++_toServerS, Filters));
+
+                    if (ClientEncrypt != null)
+                        data = ClientEncrypt.SafeParse(data);
+
+                    _serverS.Send(data);
+                }
+            }
+            catch
+            {
+                Disconnect();
+                data = new byte[0];
+            }
+            return data.Length;
+        }
+        public int SendToServer(ushort header, params object[] chunks)
+        {
+            return SendToServer(HMessage.Construct(header, chunks));
+        }
+
+        public int SendToClient(byte[] data)
+        {
+            lock (_sendToClientLock)
+                ProcessIncoming(data);
+
+            return data.Length;
+        }
+        public int SendToClient(ushort header, params object[] chunks)
+        {
+            return SendToClient(HMessage.Construct(header, chunks));
+        }
+
         private void ReadServerData()
         {
-            if (IsConnected && ReceiveData)
+            if (ReceiveData)
                 _serverS.BeginReceive(_serverB, 0, _serverB.Length, SocketFlags.None, DataFromServer, null);
         }
         private void DataFromServer(IAsyncResult iAr)
@@ -816,24 +775,41 @@ namespace Sulakore.Habbo
 
                 if (_toClientS == 2)
                 {
-                    int dLength = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
-                    ResponseEncrypted = (dLength != data.Length - 4);
+                    length = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
+                    ResponseEncrypted = (length != data.Length - 4);
                 }
                 IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, !ResponseEncrypted);
 
                 foreach (byte[] chunk in chunks)
-                {
-                    ++_toClientS;
+                    ProcessIncoming(chunk);
 
-                    if (DataToClient != null)
-                        DataToClient(this, new DataToEventArgs(chunk, HDestination.Client, _toClientS));
-                }
                 ReadServerData();
             }
             catch { Disconnect(); }
         }
+        private void ConnectedToServer(IAsyncResult iAr)
+        {
+            _serverS.EndConnect(iAr);
 
-        public static IList<HSession> Extract(string path, char delimiter = ':')
+            _receiveData = true;
+            _serverB = new byte[1024];
+
+            ReadServerData();
+            OnConnected(EventArgs.Empty);
+        }
+
+        private void ProcessIncoming(byte[] data)
+        {
+            ++_toClientS;
+            if (!ResponseEncrypted)
+                Task.Factory.StartNew(() =>
+                    Triggers.ProcessIncoming(data), TaskCreationOptions.LongRunning);
+
+            OnDataToClient(new DataToEventArgs(data, HDestination.Client, _toClientS, Filters));
+        }
+        #endregion
+
+        public static IList<HSession> Extract(string path, char delimiter)
         {
             var accounts = new List<HSession>();
             using (var streamReader = new StreamReader(path))
@@ -862,15 +838,6 @@ namespace Sulakore.Habbo
                 }
             }
             return accounts;
-        }
-        public static Task<IList<HSession>> ExtractAsync(string path, char delimiter = ':')
-        {
-            return Task.Factory.StartNew(() => Extract(path, delimiter));
-        }
-
-        public override string ToString()
-        {
-            return string.Format("{0}:{1}:{2}", Email, Password, Hotel.ToDomain());
         }
     }
 }
