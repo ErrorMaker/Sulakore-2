@@ -167,15 +167,6 @@ namespace Sulakore.Protocol.Encryption
             DhPrivate = new BigInteger(RandomHex(30), _bitSize);
             DhPublic = DhGenerator.ModPow(DhPrivate, DhPrime);
         }
-
-        public void Flush()
-        {
-            if (!IsInitiator)
-                DhPrime = DhGenerator = DhPublic = DhPrivate = null;
-
-            _signedPrime = _signedGenerator = _publicKey = string.Empty;
-            IsBannerHandshake = false;
-        }
         #endregion
 
         #region Static Methods
