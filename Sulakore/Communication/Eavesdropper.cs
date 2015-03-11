@@ -181,7 +181,7 @@ namespace Sulakore.Communication
                         byte[] commandResponse = GetCommandResponse(request, response, responseData.Length);
                         requestSocket.Send(commandResponse);
 
-                        if (responseData != null)
+                        if (responseData != null && responseData.Length != 0)
                             requestSocket.Send(responseData);
 
                         shouldTerminate = doTerminate;
