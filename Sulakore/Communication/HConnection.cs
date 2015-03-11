@@ -106,11 +106,8 @@ namespace Sulakore.Communication
         {
             _hostsPath = Environment.GetFolderPath(Environment.SpecialFolder.System) + "\\drivers\\etc\\hosts";
         }
-        public HConnection(string host, int port)
+        public HConnection()
         {
-            Host = host;
-            Port = port;
-
             _filters = new HFilters();
             _triggers = new HTriggers();
             _resetHostLock = new object();
@@ -118,11 +115,36 @@ namespace Sulakore.Communication
             _sendToClientLock = new object();
             _sendToServerLock = new object();
 
-            EnforceHost();
+        }
+
+        public void Connect(bool hostsWrite, string host, int port)
+        {
+            Host = host;
+            Port = port;
             ResetHost();
 
             Addresses = Dns.GetHostAddresses(host)
                 .Select(ip => ip.ToString()).ToArray();
+
+            if (hostsWrite)
+            {
+                EnforceHost();
+                string[] lines = File.ReadAllLines(_hostsPath);
+                if (!Array.Exists(lines, ip => Addresses.Contains(ip)))
+                {
+                    List<string> gameIPs = Addresses.ToList();
+
+                    if (!gameIPs.Contains(Host))
+                        gameIPs.Add(Host);
+
+                    string mapping = string.Format("127.0.0.1\t\t{{0}}\t\t#{0}[{{1}}/{1}]", Host, gameIPs.Count);
+                    File.AppendAllLines(_hostsPath, gameIPs.Select(ip => string.Format(mapping, ip, gameIPs.IndexOf(ip) + 1)));
+                }
+            }
+
+            (_htcpExt = new TcpListenerEx(IPAddress.Any, Port)).Start();
+            _htcpExt.BeginAcceptSocket(SocketAccepted, null);
+            _disconnectAllowed = true;
         }
 
         public int SendToClient(byte[] data)
@@ -207,33 +229,6 @@ namespace Sulakore.Communication
                 File.Create(_hostsPath).Close();
 
             File.SetAttributes(_hostsPath, FileAttributes.Normal);
-        }
-
-        public void Connect()
-        {
-            EnforceHost();
-            Connect(false);
-        }
-        public void Connect(bool loopback)
-        {
-            if (loopback)
-            {
-                string[] lines = File.ReadAllLines(_hostsPath);
-                if (!Array.Exists(lines, ip => Addresses.Contains(ip)))
-                {
-                    List<string> gameIPs = Addresses.ToList();
-
-                    if (!gameIPs.Contains(Host))
-                        gameIPs.Add(Host);
-
-                    string mapping = string.Format("127.0.0.1\t\t{{0}}\t\t#{0}[{{1}}/{1}]", Host, gameIPs.Count);
-                    File.AppendAllLines(_hostsPath, gameIPs.Select(ip => string.Format(mapping, ip, gameIPs.IndexOf(ip) + 1)));
-                }
-            }
-
-            (_htcpExt = new TcpListenerEx(IPAddress.Any, Port)).Start();
-            _htcpExt.BeginAcceptSocket(SocketAccepted, null);
-            _disconnectAllowed = true;
         }
 
         private void SocketAccepted(IAsyncResult iAr)
