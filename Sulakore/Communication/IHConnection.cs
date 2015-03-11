@@ -28,6 +28,9 @@ namespace Sulakore.Communication
         bool ResponseEncrypted { get; }
 
         int SendToServer(byte[] data);
+        int SendToServer(ushort header, params object[] chunks);
+
         int SendToClient(byte[] data);
+        int SendToClient(ushort header, params object[] chunks);
     }
 }
