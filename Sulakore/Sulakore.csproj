@@ -12,10 +12,14 @@
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
-    <SccProjectName>SAK</SccProjectName>
-    <SccLocalPath>SAK</SccLocalPath>
-    <SccAuxPath>SAK</SccAuxPath>
-    <SccProvider>SAK</SccProvider>
+    <SccProjectName>
+    </SccProjectName>
+    <SccLocalPath>
+    </SccLocalPath>
+    <SccAuxPath>
+    </SccAuxPath>
+    <SccProvider>
+    </SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -47,7 +51,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Communication\Event Args\DataToEventArgs.cs" />
-    <Compile Include="Communication\Event Args\DisconnectedEventArgs.cs" />
     <Compile Include="Communication\Event Args\EavesdropperRequestEventArgs.cs" />
     <Compile Include="Communication\Event Args\EavesdropperResponseEventArgs.cs" />
     <Compile Include="Communication\Event Args\Incoming Event Args\FurnitureDataLoadedEventArgs.cs" />
