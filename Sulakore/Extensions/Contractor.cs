@@ -49,7 +49,7 @@ namespace Sulakore.Extensions
             ExtensionsRunning = new ReadOnlyCollection<IExtension>(_extensionsRunning);
 
             GameData = gameData;
-            if (connection != null)
+            if (connection != null && !string.IsNullOrEmpty(connection.Host))
                 Hotel = SKore.ToHotel(connection.Host);
         }
 
