@@ -15,17 +15,16 @@ namespace Sulakore.Communication
         string Host { get; }
         HFilters Filters { get; }
         string[] Addresses { get; }
-        string FlashClientBuild { get; }
 
-        Rc4 ServerDecrypt { get; set; }
-        Rc4 ServerEncrypt { get; set; }
+        Rc4 IncomingDecrypt { get; set; }
+        Rc4 IncomingEncrypt { get; set; }
 
-        Rc4 ClientEncrypt { get; set; }
-        Rc4 ClientDecrypt { get; set; }
+        Rc4 OutgoingEncrypt { get; set; }
+        Rc4 OutgoingDecrypt { get; set; }
 
         bool IsConnected { get; }
-        bool RequestEncrypted { get; }
-        bool ResponseEncrypted { get; }
+        bool IsOutgoingEncrypted { get; }
+        bool IsIncomingEncrypted { get; }
 
         int SendToServer(byte[] data);
         int SendToServer(ushort header, params object[] chunks);
