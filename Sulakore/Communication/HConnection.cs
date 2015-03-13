@@ -69,38 +69,37 @@ namespace Sulakore.Communication
         }
 
         private Rc4 _serverDecrypt;
-        public Rc4 ServerDecrypt
+        public Rc4 IncomingDecrypt
         {
             get { return _serverDecrypt; }
             set
             {
                 if ((_serverDecrypt = value) != null)
-                    ResponseEncrypted = false;
+                    IsIncomingEncrypted = false;
             }
         }
-        public Rc4 ServerEncrypt { get; set; }
+        public Rc4 IncomingEncrypt { get; set; }
 
         private Rc4 _clientDecrypt;
-        public Rc4 ClientDecrypt
+        public Rc4 OutgoingDecrypt
         {
             get { return _clientDecrypt; }
             set
             {
                 if ((_clientDecrypt = value) != null)
-                    RequestEncrypted = false;
+                    IsOutgoingEncrypted = false;
             }
         }
-        public Rc4 ClientEncrypt { get; set; }
+        public Rc4 OutgoingEncrypt { get; set; }
 
         public bool IsConnected
         {
             get { return _serverS != null && _serverS.Connected; }
         }
-        public bool RequestEncrypted { get; private set; }
-        public bool ResponseEncrypted { get; private set; }
+        public bool IsOutgoingEncrypted { get; private set; }
+        public bool IsIncomingEncrypted { get; private set; }
 
         public int SocketSkip { get; set; }
-        public string FlashClientBuild { get; private set; }
 
         static HConnection()
         {
@@ -152,8 +151,8 @@ namespace Sulakore.Communication
             if (_clientS == null || !_clientS.Connected) return 0;
             lock (_sendToClientLock)
             {
-                if (ServerEncrypt != null)
-                    data = ServerEncrypt.SafeParse(data);
+                if (IncomingEncrypt != null)
+                    data = IncomingEncrypt.SafeParse(data);
 
                 return _clientS.Send(data);
             }
@@ -169,8 +168,8 @@ namespace Sulakore.Communication
 
             lock (_sendToServerLock)
             {
-                if (ClientEncrypt != null)
-                    data = ClientEncrypt.SafeParse(data);
+                if (OutgoingEncrypt != null)
+                    data = OutgoingEncrypt.SafeParse(data);
 
                 return _serverS.Send(data);
             }
@@ -217,8 +216,8 @@ namespace Sulakore.Communication
                 }
                 _toClientS = _toServerS = _socketCount = 0;
                 _clientB = _serverB = _clientC = _serverC = null;
-                ClientEncrypt = ClientDecrypt = ServerEncrypt = ServerDecrypt = null;
-                _hasOfficialSocket = _grabHeaders = RequestEncrypted = ResponseEncrypted = false;
+                OutgoingEncrypt = OutgoingDecrypt = IncomingEncrypt = IncomingDecrypt = null;
+                _hasOfficialSocket = _grabHeaders = IsOutgoingEncrypted = IsIncomingEncrypted = false;
 
                 OnDisconnected(EventArgs.Empty);
             }
@@ -288,9 +287,6 @@ namespace Sulakore.Communication
                 {
                     if (_hasOfficialSocket = (BigEndian.DecypherShort(data, 4) == 4000))
                     {
-                        int buildLength = BigEndian.DecypherShort(data, 6);
-                        FlashClientBuild = Encoding.Default.GetString(data, 8, buildLength);
-
                         ResetHost();
                         _htcpExt.Stop();
                         _htcpExt = null;
@@ -304,15 +300,15 @@ namespace Sulakore.Communication
                     }
                 }
 
-                if (ClientDecrypt != null)
-                    ClientDecrypt.Parse(data);
+                if (OutgoingDecrypt != null)
+                    OutgoingDecrypt.Parse(data);
 
                 if (_toServerS == 3)
                 {
                     int dLength = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
-                    RequestEncrypted = (dLength != data.Length - 4);
+                    IsOutgoingEncrypted = (dLength != data.Length - 4);
                 }
-                IList<byte[]> chunks = ByteUtils.Split(ref _clientC, data, !RequestEncrypted);
+                IList<byte[]> chunks = ByteUtils.Split(ref _clientC, data, !IsOutgoingEncrypted);
 
                 foreach (byte[] chunk in chunks)
                     ProcessOutgoing(chunk);
@@ -324,7 +320,7 @@ namespace Sulakore.Communication
         private void ProcessOutgoing(byte[] data)
         {
             ++_toServerS;
-            if (!RequestEncrypted)
+            if (!IsOutgoingEncrypted)
                 Task.Factory.StartNew(() =>
                     Triggers.ProcessOutgoing(data), TaskCreationOptions.LongRunning);
 
@@ -384,15 +380,15 @@ namespace Sulakore.Communication
                     return;
                 }
 
-                if (ServerDecrypt != null)
-                    ServerDecrypt.Parse(data);
+                if (IncomingDecrypt != null)
+                    IncomingDecrypt.Parse(data);
 
                 if (_toClientS == 2)
                 {
                     length = data.Length >= 6 ? BigEndian.DecypherInt(data) : 0;
-                    ResponseEncrypted = (length != data.Length - 4);
+                    IsIncomingEncrypted = (length != data.Length - 4);
                 }
-                IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, !ResponseEncrypted);
+                IList<byte[]> chunks = ByteUtils.Split(ref _serverC, data, !IsIncomingEncrypted);
 
                 foreach (byte[] chunk in chunks)
                     ProcessIncoming(chunk);
@@ -404,7 +400,7 @@ namespace Sulakore.Communication
         private void ProcessIncoming(byte[] data)
         {
             ++_toClientS;
-            if (!ResponseEncrypted)
+            if (!IsIncomingEncrypted)
                 Task.Factory.StartNew(() =>
                     Triggers.ProcessIncoming(data), TaskCreationOptions.LongRunning);
 
@@ -440,7 +436,6 @@ namespace Sulakore.Communication
                 Host = null;
                 Addresses = null;
                 Port = SocketSkip = 0;
-                FlashClientBuild = string.Empty;
 
                 Triggers.Dispose();
             }
