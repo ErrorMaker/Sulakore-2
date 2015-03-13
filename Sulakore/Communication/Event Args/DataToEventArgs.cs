@@ -24,14 +24,10 @@ namespace Sulakore.Communication
             get { return _step; }
         }
 
-        private readonly bool _isBlocked;
         /// <summary>
-        /// Gets a value that indicates whether the packet will not be sent.
+        /// Gets or sets a value that indicates whether the packet will not be sent.
         /// </summary>
-        public bool IsBlocked
-        {
-            get { return _isBlocked; }
-        }
+        public bool IsBlocked { get; set; }
 
         private HMessage _replacement;
         /// <summary>
@@ -60,7 +56,7 @@ namespace Sulakore.Communication
         public DataToEventArgs(byte[] data, HDestination destination, int step, HFilters filters)
             : this(data, destination, step)
         {
-            _isBlocked = (destination == HDestination.Client)
+            IsBlocked = (destination == HDestination.Client)
                ? filters.InProcessFilters(ref _replacement)
                : filters.OutProcessFilters(ref _replacement);
         }
