@@ -6,28 +6,16 @@
     public enum HPage
     {
         /// <summary>
-        /// Represents http://www.Habbo-/me
+        /// Represents https://www.Habbo-/hotel
         /// </summary>
-        Me = 1,
+        Client = 0,
         /// <summary>
-        /// Represents http://www.Habbo-/home/-
+        /// Represents https://www.Habbo-/profile/-
         /// </summary>
-        Home = 2,
+        Profile = 1,
         /// <summary>
-        /// Represents http://www.Habbo-/client
+        /// Represents https://www.Habbo-/settings
         /// </summary>
-        Client = 3,
-        /// <summary>
-        /// Represents http://www.Habbo-/profile
-        /// </summary>
-        Profile = 4,
-        /// <summary>
-        /// Represents https://www.Habbo-/identity/avatars
-        /// </summary>
-        IdAvatars = 5,
-        /// <summary>
-        /// Represents http://www.Habbo-/identity/settings
-        /// </summary>
-        IdSettings = 6
+        Settings = 2
     }
 }
