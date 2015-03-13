@@ -24,7 +24,7 @@ namespace Sulakore
         private static readonly IDictionary<HHotel, IDictionary<string, int>> _playerIds;
         private static readonly IDictionary<HHotel, IDictionary<int, string>> _playerNames;
 
-        public const string ChromeAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36";
+        public const string ChromeAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.89 Safari/537.36";
 
         static SKore()
         {
@@ -44,22 +44,17 @@ namespace Sulakore
         /// Returns a cookie containing your external IP address that is required by most hotels to retrieve a remote resource from their host.
         /// </summary>
         /// <returns></returns>
-        public static string GetIpCookie(HHotel hotel = HHotel.Com)
+        public static string GetIpCookie(HHotel hotel)
         {
             if (!string.IsNullOrEmpty(_ipCookie)) return _ipCookie;
             using (var webClientEx = new WebClientEx())
             {
                 webClientEx.Proxy = null;
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl());
+                string body = webClientEx.DownloadString(hotel.ToUrl(false));
                 return _ipCookie = (body.Contains(("setCookie")) ? "YPF8827340282Jdskjhfiw_928937459182JAX666=" + body.GetChilds("setCookie", '\'', false)[3] : string.Empty);
             }
         }
-        public static Task<string> GetIpCookieAsync()
-        {
-            return Task.Factory.StartNew(() => GetIpCookie());
-        }
-
         /// <summary>
         /// Returns the current online player count for the specified hotel.
         /// </summary>
@@ -72,15 +67,10 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl() + "/login_popup");
+                string body = webClientEx.DownloadString(hotel.ToUrl(false) + "/login_popup");
                 return body.Contains("stats-fig") ? int.Parse(body.GetChild("<span class=\"stats-fig\">", '<')) : -1;
             }
         }
-        public static Task<int> GetPlayersOnlineAsync(HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayersOnline(hotel));
-        }
-
         /// <summary>
         /// Returns the player id relative to the specified player name, and hotel.
         /// </summary>
@@ -99,7 +89,7 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl() + "/habblet/ajax/new_habboid?habboIdName=" + playerName);
+                string body = webClientEx.DownloadString(hotel.ToUrl(false) + "/habblet/ajax/new_habboid?habboIdName=" + playerName);
 
                 int value = !body.Contains("rounded rounded-red") ? int.Parse(body.GetChild("<em>", '<').Replace(" ", string.Empty)) : -1;
                 if (value != -1)
@@ -113,11 +103,6 @@ namespace Sulakore
                 return value;
             }
         }
-        public static Task<int> GetPlayerIdAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerId(playerName, hotel));
-        }
-
         /// <summary>
         /// Returns the player name relative to the specified player id, and hotel.
         /// </summary>
@@ -136,7 +121,7 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(string.Format("{0}/rd/{1}", hotel.ToUrl(), playerId));
+                string body = webClientEx.DownloadString(string.Format("{0}/rd/{1}", hotel.ToUrl(false), playerId));
 
                 string value = body.Contains("/home/") ? body.GetChild("<input type=\"hidden\" name=\"page\" value=\"/home/", '?') : string.Empty;
                 if (!string.IsNullOrEmpty(value))
@@ -150,11 +135,6 @@ namespace Sulakore
                 return value;
             }
         }
-        public static Task<string> GetPlayerNameAsync(int playerId, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerName(playerId, hotel));
-        }
-
         /// <summary>
         /// Determines whether the specified player name is taken relative to the hotel.
         /// </summary>
@@ -165,11 +145,6 @@ namespace Sulakore
         {
             return GetPlayerId(playerName, hotel) == -1;
         }
-        public static Task<bool> CheckPlayerNameAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => CheckPlayerName(playerName, hotel));
-        }
-
         /// <summary>
         /// Returns the player motto relative to the specified player name, and hotel.
         /// </summary>
@@ -183,15 +158,10 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl() + "/habblet/habbosearchcontent?searchString=" + playerName);
+                string body = webClientEx.DownloadString(hotel.ToUrl(false) + "/habblet/habbosearchcontent?searchString=" + playerName);
                 return body.IndexOf(playerName, StringComparison.OrdinalIgnoreCase) != -1 ? body.GetChild("<b>" + playerName + "</b><br />", '<') : string.Empty;
             }
         }
-        public static Task<string> GetPlayerMottoAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerMotto(playerName, hotel));
-        }
-
         /// <summary>
         /// Returns the player avatar relative to the specified player name, and hotel.
         /// </summary>
@@ -205,16 +175,11 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                byte[] avatarData = webClientEx.DownloadData(hotel.ToUrl() + "/habbo-imaging/avatarimage?user=" + playerName + "&action=&direction=&head_direction=&gesture=&size=");
+                byte[] avatarData = webClientEx.DownloadData(hotel.ToUrl(false) + "/habbo-imaging/avatarimage?user=" + playerName + "&action=&direction=&head_direction=&gesture=&size=");
                 using (var memoryStream = new MemoryStream(avatarData))
                     return new Bitmap(memoryStream);
             }
         }
-        public static Task<Bitmap> GetPlayerAvatarAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerAvatar(playerName, hotel));
-        }
-
         /// <summary>
         /// Returns the player figure id relative to the specified player name, and hotel.
         /// </summary>
@@ -228,15 +193,10 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl() + "/habblet/habbosearchcontent?searchString=" + playerName);
+                string body = webClientEx.DownloadString(hotel.ToUrl(false) + "/habblet/habbosearchcontent?searchString=" + playerName);
                 return body.Contains("habbo-imaging/avatar/") ? body.GetChild("habbo-imaging/avatar/", ',') : string.Empty;
             }
         }
-        public static Task<string> GetPlayerFigureIdAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerFigureId(playerName, hotel));
-        }
-
         /// <summary>
         /// Returns the player's last online date relative to the specified player name, and hotel.
         /// </summary>
@@ -251,17 +211,13 @@ namespace Sulakore
                 webClientEx.Proxy = null;
                 webClientEx.Headers["Cookie"] = GetIpCookie(hotel);
                 webClientEx.Headers["User-Agent"] = ChromeAgent;
-                string body = webClientEx.DownloadString(hotel.ToUrl() + "/habblet/habbosearchcontent?searchString=" + playerName);
+                string body = webClientEx.DownloadString(hotel.ToUrl(false) + "/habblet/habbosearchcontent?searchString=" + playerName);
 
                 if (!body.Contains("lastlogin")) return DateTime.MinValue;
 
                 body = body.GetChild("<div class=\"lastlogin\">").GetChild("span title=");
                 return DateTime.Parse(body.Split('"')[1]);
             }
-        }
-        public static Task<DateTime> GetPlayerLastOnlineAsync(string playerName, HHotel hotel)
-        {
-            return Task.Factory.StartNew(() => GetPlayerLastOnline(playerName, hotel));
         }
 
         public static void ClearCache()
@@ -306,7 +262,7 @@ namespace Sulakore
         {
             return Dns.GetHostAddresses(GetGameHost(hotel)).Select(ip => ip.ToString()).ToArray();
         }
-        public static string ToUrl(this HHotel hotel, bool https = false)
+        public static string ToUrl(this HHotel hotel, bool https)
         {
             return (https ? "https://www.Habbo." : "http://www.Habbo.") + hotel.ToDomain();
         }
@@ -329,12 +285,9 @@ namespace Sulakore
         {
             switch (page)
             {
-                case HPage.Client: return hotel.ToUrl() + "/client";
-                case HPage.Home: return hotel.ToUrl() + "/home/";
-                case HPage.IdAvatars: return hotel.ToUrl() + "/identity/avatars";
-                case HPage.IdSettings: return hotel.ToUrl() + "/identity/settings";
-                case HPage.Me: return hotel.ToUrl() + "/me";
-                case HPage.Profile: return hotel.ToUrl() + "/profile";
+                case HPage.Profile: return hotel.ToUrl(true) + "/profile/";
+                case HPage.Settings: return hotel.ToUrl(true) + "/settings";
+                case HPage.Client: return hotel.ToUrl(true) + "/api/client/clienturl";
                 default: return string.Empty;
             }
         }
