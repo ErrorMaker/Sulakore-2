@@ -30,7 +30,11 @@ namespace Sulakore.Extensions
 
         public HHotel Hotel { get; private set; }
         public HGameData GameData { get; private set; }
-        public IHConnection Connection { get; private set; }
+        public IHConnection Connection
+        {
+            get { return _connection; }
+        }
+
         public ReadOnlyCollection<IExtension> Extensions { get; private set; }
         public ReadOnlyCollection<IExtension> ExtensionsRunning { get; private set; }
 
