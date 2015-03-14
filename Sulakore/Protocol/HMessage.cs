@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
@@ -443,35 +442,64 @@ namespace Sulakore.Protocol
 
         public static byte[] ToBytes(string packet)
         {
-            var buffer = new List<byte>();
             for (int i = 0; i <= 13; i++)
                 packet = packet.Replace("[" + i + "]", ((char)i).ToString());
 
-            bool writeLength = false;
-            string[] signatures = packet.Split(new[] { '{', '}' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (string signature in signatures)
+            int endIndex;
+            byte[] chunk = null;
+            string value, replaceBy, chunkFormat;
+            bool writeLength = false, expectClose = false;
+            for (int i = 0; i < packet.Length; i++)
             {
-                string[] args = signature.Split(':');
-                switch (args[0])
+                char pByte = packet[i];
+                if (!expectClose && pByte != '{') continue;
+                else if (pByte == '{') expectClose = true;
+                else if (expectClose && pByte != '}')
                 {
-                    case "l": writeLength = true; break;
-                    case "b":
+                    expectClose = false;
+                    endIndex = packet.Substring(i).IndexOf('}') + i;
+                    if (endIndex == -1 || endIndex == 0 || i + 2 > packet.Length) continue;
+
+                    if (pByte == 'l')
                     {
-                        bool value;
-                        buffer.Add(bool.TryParse(args[1], out value)
-                            ? Convert.ToByte(value) : Convert.ToByte(args[1])); break;
+                        writeLength = true;
+                        packet = packet.Remove(i - 1, 3);
+                        i = -1;
+                        continue;
                     }
-                    case "s": buffer.AddRange(Encode(args[1])); break;
-                    case "i": buffer.AddRange(BigEndian.CypherInt(int.Parse(args[1]))); break;
-                    case "u": buffer.AddRange(BigEndian.CypherShort(ushort.Parse(args[1]))); break;
-                    default: buffer.AddRange(Encoding.Default.GetBytes(signature)); break;
+
+                    int vLength = endIndex - i - 2;
+                    if (vLength < 1) continue;
+
+                    value = packet.Substring(i + 2, vLength);
+                    chunkFormat = string.Format("{{{0}:{1}}}", pByte, value);
+
+                    switch (pByte)
+                    {
+                        case 's': chunk = Encode(value); break;
+                        case 'i': chunk = Encode(int.Parse(value)); break;
+                        case 'b':
+                        {
+                            chunk = value.Length < 4
+                                ? Encode(byte.Parse(value)) : Encode(bool.Parse(value));
+                            break;
+                        }
+                        case 'u': chunk = Encode(ushort.Parse(value)); break;
+                    }
+
+                    replaceBy = Encoding.Default.GetString(chunk);
+                    packet = packet.Replace(chunkFormat, replaceBy);
+
+                    int nextParam = packet.Substring(i).IndexOf('{');
+                    if (nextParam == -1) break;
+                    else i = nextParam + (i - 1);
                 }
             }
 
             if (writeLength)
-                buffer.InsertRange(0, BigEndian.CypherInt(buffer.Count));
+                packet = Encoding.Default.GetString(Encode(packet.Length)) + packet;
 
-            return buffer.ToArray();
+            return Encoding.Default.GetBytes(packet);
         }
         public static string ToString(byte[] packet)
         {
