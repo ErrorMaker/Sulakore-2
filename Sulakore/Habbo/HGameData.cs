@@ -2,7 +2,6 @@
 {
     public struct HGameData
     {
-        #region
         private readonly string _host;
         public string Host
         {
@@ -92,7 +91,6 @@
         {
             get { return _overrideVariables; }
         }
-        #endregion
 
         public HGameData(string productDataLoadUrl, string overrideVariables, int playerId, string host,
             string variables, string figurePartList, string furniDataLoadUrl, string ssoTicket, string uniqueId,
@@ -117,22 +115,24 @@
 
         public static HGameData Parse(string body)
         {
-            // TODO: Go back to using GetChild for every variable, to clean this up a bit, or is this fine?
+            body = body.Replace("\\/", "/").Replace("\"//", "\"http://")
+                .Replace("'//", "'http://");
 
-            body = body.GetChild("var flashvars = {", '}')
-                .Replace("\\/", "/").Replace("\"", string.Empty);
+
+            string flashVars = body.GetChild("var flashvars = {", '}')
+                .Replace("\"", string.Empty).Replace(" : ", ":");
 
             string productDataLoadUrl = null, overrideVariables = null, playerId = null, host = null,
                 variables = null, figurePartList = null, furniDataLoadUrl = null, ssoTicket = null, uniqueId = null,
                 texts = null, flashClientUrl = null, flashClientBuild = null, clientStarting = null, port = null, overrideTexts = null;
 
-            string[] lines = body.Split(',');
+            string[] lines = flashVars.Split(',');
             foreach (string pair in lines)
             {
-                string varName = pair.Split(':')[0];
+                string varName = pair.Split(':')[0].Trim();
                 string varValue = pair.GetChild(varName + ":");
 
-                switch (varName.Trim())
+                switch (varName)
                 {
                     case "productdata.load.url": productDataLoadUrl = varValue; break;
                     case "external.override.variables.txt": overrideVariables = varValue; break;
@@ -146,8 +146,26 @@
                     case "external.texts.txt": texts = varValue; break;
                     case "flash.client.url":
                     {
-                        flashClientUrl = "http:" + varValue+ "Habbo.swf";
-                        flashClientBuild = flashClientUrl.GetChild("gordon/", '/');
+                        char valueEnd = '"';
+                        string clientUrl = null;
+                        int clientUrlIndex = body.IndexOf("embedSWF(");
+                        if (clientUrlIndex != -1)
+                        {
+                            clientUrlIndex += 8;
+                            valueEnd = body[clientUrlIndex + 1];
+                            bool isVariable = (valueEnd != '"' && valueEnd != '\'');
+                            if (isVariable)
+                            {
+                                clientUrl = body.GetChild(string.Format("{0} = \"",
+                                    body.GetChild("embedSWF(", ',')), '"');
+                            }
+                            else clientUrl = body.GetChild("embedSWF(" + valueEnd, valueEnd);
+                            clientUrl = clientUrl.Split('?')[0];
+                        }
+                        flashClientUrl = clientUrl ?? "http:" + varValue + "Habbo.swf";
+
+                        string[] segments = flashClientUrl.Split('/');
+                        flashClientBuild = segments[segments.Length - 2];
                         break;
                     }
                     case "client.starting": clientStarting = varValue; break;
