@@ -1,10 +1,7 @@
-﻿using System.Drawing;
-using System.Windows.Forms;
-using System.Collections.Generic;
+﻿using System.Windows.Forms;
+using System.Collections.ObjectModel;
 
 using Sulakore.Protocol;
-using System;
-using System.Collections.ObjectModel;
 
 namespace Sulakore.Components
 {
@@ -41,6 +38,7 @@ namespace Sulakore.Components
                 BeginUpdate();
                 ListViewItem item = null;
                 byte[] data = new byte[0];
+                SuppressItemSelectedEvent = true;
                 string typeName = string.Empty, value = string.Empty, encoded = string.Empty;
                 foreach (object chunk in chunks)
                 {
@@ -53,6 +51,8 @@ namespace Sulakore.Components
                     item = FocusAdd(typeName, value, encoded);
                     item.ToolTipText = string.Format(CHUNK_TIP, typeName, value, data.Length, encoded);
                 }
+                SuppressItemSelectedEvent = false;
+                OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
             }
             finally { EndUpdate(); }
         }
