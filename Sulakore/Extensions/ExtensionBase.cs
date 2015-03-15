@@ -114,19 +114,29 @@ namespace Sulakore.Extensions
 
         void IExtension.DataToClient(byte[] data)
         {
-            var packet = new HMessage(data, HDestination.Client);
-            Triggers.ProcessIncoming(packet);
+            try
+            {
+                var packet = new HMessage(data, HDestination.Client);
+                Triggers.ProcessIncoming(packet);
 
-            OnDataToClient(packet);
+                OnDataToClient(packet);
+            }
+            catch { }
+            // The side that caused the exception should not be trusted to handle it.
         }
         protected abstract void OnDataToClient(HMessage packet);
 
         void IExtension.DataToServer(byte[] data)
         {
-            var packet = new HMessage(data, HDestination.Server);
-            Triggers.ProcessOutgoing(packet);
+            try
+            {
+                var packet = new HMessage(data, HDestination.Server);
+                Triggers.ProcessOutgoing(packet);
 
-            OnDataToServer(packet);
+                OnDataToServer(packet);
+            }
+            catch { }
+            // The side that caused the exception should not be trusted to handle it.
         }
         protected abstract void OnDataToServer(HMessage packet);
 
