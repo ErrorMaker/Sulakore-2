@@ -100,7 +100,6 @@ namespace Sulakore.Extensions
         {
             extension.Dispose();
 
-            // TODO: Remove redundent 'IsRunning' check, although we need to make sure of a few things first.
             if (!extension.IsRunning && _extensionsRunning.Contains(extension))
                 _extensionsRunning.Remove(extension);
         }
@@ -108,7 +107,6 @@ namespace Sulakore.Extensions
         {
             extension.Initialize();
 
-            // TODO: Remove redundent 'IsRunning' check, although we need to make sure of a few things first.
             if (extension.IsRunning && !_extensionsRunning.Contains(extension))
                 _extensionsRunning.Add(extension);
         }
