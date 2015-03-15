@@ -6,10 +6,24 @@ namespace Sulakore.Components
 {
     public class SKoreListView : ListView
     {
-        private bool _suppressSelectionChangedEvent;
+        public event EventHandler<ListViewItemSelectionChangedEventArgs> ItemSelected;
+        protected virtual void OnItemSelected(ListViewItemSelectionChangedEventArgs e)
+        {
+            EventHandler<ListViewItemSelectionChangedEventArgs> handler = ItemSelected;
+            if (handler != null) handler(this, e);
+        }
+
+        public event EventHandler ItemsDeselected;
+        protected virtual void OnItemsDeselected(EventArgs e)
+        {
+            EventHandler handler = ItemsDeselected;
+            if (handler != null) handler(this, e);
+        }
 
         [DefaultValue(true)]
         public bool LockColumnWidth { get; set; }
+
+        protected bool SuppressItemSelectedEvent { get; set; }
 
         public SKoreListView()
         {
@@ -32,24 +46,24 @@ namespace Sulakore.Components
             if (SelectedItems.Count < 1) return;
             RemoveItem(SelectedItems[0]);
         }
-        protected virtual void RemoveItem(ListViewItem listViewItem)
+        protected virtual void RemoveItem(ListViewItem item)
         {
-            int index = listViewItem.Index;
+            int index = item.Index;
             bool selectNext = Items.Count - 1 > 0;
 
-            _suppressSelectionChangedEvent = selectNext;
             Items.RemoveAt(index);
-
             if (selectNext)
             {
                 if (index >= Items.Count)
                     index = Items.Count - 1;
 
-                _suppressSelectionChangedEvent = true;
-                Items[index].Selected = true;
+                item = Items[index];
+                item.Selected = true;
+                OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
 
-                EnsureVisible(index);
+                EnsureVisible(item.Index);
             }
+            else OnItemsDeselected(EventArgs.Empty);
         }
 
         public void MoveSelectedItemUp()
@@ -57,22 +71,20 @@ namespace Sulakore.Components
             if (SelectedItems.Count < 1) return;
             MoveItemUp(SelectedItems[0]);
         }
-        protected virtual void MoveItemUp(ListViewItem listViewItem)
+        protected virtual void MoveItemUp(ListViewItem item)
         {
-            int oldIndex = listViewItem.Index;
+            int oldIndex = item.Index;
             if (oldIndex < 1) return;
-
-            _suppressSelectionChangedEvent = true;
 
             BeginUpdate();
             Items.RemoveAt(oldIndex);
-            Items.Insert(oldIndex - 1, listViewItem);
+            Items.Insert(oldIndex - 1, item);
             EndUpdate();
 
-            _suppressSelectionChangedEvent = true;
-            listViewItem.Selected = true;
+            item.Selected = true;
+            OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
 
-            int index = listViewItem.Index;
+            int index = item.Index;
             EnsureVisible(index <= 4 ? 0 : index - 4);
         }
 
@@ -81,34 +93,34 @@ namespace Sulakore.Components
             if (SelectedItems.Count < 1) return;
             MoveItemDown(SelectedItems[0]);
         }
-        protected virtual void MoveItemDown(ListViewItem listViewItem)
+        protected virtual void MoveItemDown(ListViewItem item)
         {
-            int oldIndex = listViewItem.Index;
+            int oldIndex = item.Index;
             if (oldIndex == Items.Count - 1) return;
-
-            _suppressSelectionChangedEvent = true;
 
             BeginUpdate();
             Items.RemoveAt(oldIndex);
-            Items.Insert(oldIndex + 1, listViewItem);
+            Items.Insert(oldIndex + 1, item);
             EndUpdate();
 
-            _suppressSelectionChangedEvent = true;
-            listViewItem.Selected = true;
+            item.Selected = true;
+            OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
 
-            int index = listViewItem.Index;
+            int index = item.Index;
             EnsureVisible(index + 4 >= Items.Count ? Items.Count - 1 : index + 4);
         }
 
-        public void FocusAdd(ListViewItem listViewItem)
+        public void FocusAdd(ListViewItem item)
         {
             Focus();
-            Items.Add(listViewItem);
+            Items.Add(item);
 
-            _suppressSelectionChangedEvent = Items.Count > 1;
-            listViewItem.Selected = true;
+            item.Selected = true;
 
-            EnsureVisible(listViewItem.Index);
+            if (!SuppressItemSelectedEvent)
+                OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
+
+            EnsureVisible(item.Index);
         }
         public ListViewItem FocusAdd(params string[] items)
         {
@@ -117,7 +129,7 @@ namespace Sulakore.Components
             return listViewItem;
         }
 
-        protected ListViewItem GetSelectedItem()
+        public ListViewItem GetSelectedItem()
         {
             if (SelectedItems.Count < 1)
                 throw new Exception("No items are currently selected.");
@@ -125,15 +137,23 @@ namespace Sulakore.Components
             return SelectedItems[0];
         }
 
-        protected override void OnNotifyMessage(Message m)
-        {
-            if (m.Msg != 0x14)
-                base.OnNotifyMessage(m);
-        }
         protected override void OnMouseDown(MouseEventArgs e)
         {
-            _suppressSelectionChangedEvent = (GetItemAt(e.X, e.Y) != null);
             base.OnMouseDown(e);
+
+            ListViewItem item = GetItemAt(e.X, e.Y);
+            if (item != null)
+            {
+                item.Selected = true;
+                OnItemSelected(new ListViewItemSelectionChangedEventArgs(item, item.Index, true));
+            }
+            else
+            {
+                if (SelectedItems.Count > 0)
+                    SelectedItems[0].Selected = false;
+
+                OnItemsDeselected(EventArgs.Empty);
+            }
         }
         protected override void OnColumnWidthChanging(ColumnWidthChangingEventArgs e)
         {
@@ -143,18 +163,6 @@ namespace Sulakore.Components
                 e.NewWidth = Columns[e.ColumnIndex].Width;
             }
             base.OnColumnWidthChanging(e);
-        }
-        protected override void OnItemSelectionChanged(ListViewItemSelectionChangedEventArgs e)
-        {
-            if (_suppressSelectionChangedEvent && !e.IsSelected)
-                _suppressSelectionChangedEvent = false;
-            else
-            {
-                base.OnItemSelectionChanged(e);
-
-                if (e.IsSelected)
-                    _suppressSelectionChangedEvent = false;
-            }
         }
     }
 }
