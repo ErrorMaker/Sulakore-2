@@ -140,14 +140,24 @@ namespace Sulakore.Communication
         /// <returns>true if the packet should be blocked; otherwise false.</returns>
         public virtual bool InProcessFilters(ref HMessage packet)
         {
-            if (_inBlockedHeaders.Contains(packet.Header) || (_inBlockConditions.ContainsKey(packet.Header)
-                && _inBlockConditions[packet.Header](packet))) return true;
+            bool passedBlockCheck = false;
+            try
+            {
+                if (_inBlockedHeaders.Contains(packet.Header) || (_inBlockConditions.ContainsKey(packet.Header)
+                    && _inBlockConditions[packet.Header](packet))) return true;
 
-            if (_inReplacements.ContainsKey(packet.Header))
-                packet = _inReplacements[packet.Header];
-            else if (_inReplacers.ContainsKey(packet.Header))
-                packet = _inReplacers[packet.Header](packet);
+                passedBlockCheck = true;
 
+                if (_inReplacements.ContainsKey(packet.Header))
+                    packet = _inReplacements[packet.Header];
+                else if (_inReplacers.ContainsKey(packet.Header))
+                    packet = _inReplacers[packet.Header](packet);
+            }
+            catch
+            {
+                if (!passedBlockCheck) InUnblock(packet.Header);
+                else InUnreplace(packet.Header);
+            }
             return false;
         }
         /// <summary>
@@ -158,14 +168,24 @@ namespace Sulakore.Communication
         /// <returns>true if the packet should be blocked; otherwise false.</returns>
         public virtual bool OutProcessFilters(ref HMessage packet)
         {
-            if (_outBlockedHeaders.Contains(packet.Header) || (_outBlockConditions.ContainsKey(packet.Header)
-                && _outBlockConditions[packet.Header](packet))) return true;
+            bool passedBlockCheck = false;
+            try
+            {
+                if (_outBlockedHeaders.Contains(packet.Header) || (_outBlockConditions.ContainsKey(packet.Header)
+                    && _outBlockConditions[packet.Header](packet))) return true;
 
-            if (_outReplacements.ContainsKey(packet.Header))
-                packet = _outReplacements[packet.Header];
-            else if (_outReplacers.ContainsKey(packet.Header))
-                packet = _outReplacers[packet.Header](packet);
+                passedBlockCheck = true;
 
+                if (_outReplacements.ContainsKey(packet.Header))
+                    packet = _outReplacements[packet.Header];
+                else if (_outReplacers.ContainsKey(packet.Header))
+                    packet = _outReplacers[packet.Header](packet);
+            }
+            catch
+            {
+                if (!passedBlockCheck) OutUnblock(packet.Header);
+                else OutUnreplace(packet.Header);
+            }
             return false;
         }
     }
