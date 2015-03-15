@@ -32,6 +32,8 @@ namespace Sulakore.Components
 
         public void Install(ExtensionBase extension)
         {
+            if (extension == null) return;
+
             ListViewItem item = FocusAdd(extension.Name,
                 extension.Author, extension.Version.ToString());
 
