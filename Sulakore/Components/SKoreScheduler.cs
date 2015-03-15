@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Windows.Forms;
 using System.ComponentModel;
 using System.Collections.Generic;
@@ -17,9 +18,14 @@ namespace Sulakore.Components
 
         private const string RUNNING = "Running", STOPPED = "Stopped";
 
+        [Browsable(false)]
         [DefaultValue(true)]
         public bool AutoStart { get; set; }
-        public int Running { get; private set; }
+
+        public int Running
+        {
+            get { return _items.Keys.Count(x => x.IsRunning); }
+        }
 
         public SKoreScheduler()
         {
@@ -162,15 +168,9 @@ namespace Sulakore.Components
             e.Item.SubItems[4].Text = e.Item.Checked ? RUNNING : STOPPED;
 
             if (e.Item.Checked)
-            {
                 schedule.Start();
-                ++Running;
-            }
             else if (schedule.IsRunning)
-            {
                 schedule.Stop();
-                --Running;
-            }
 
             base.OnItemChecked(e);
         }
@@ -185,9 +185,12 @@ namespace Sulakore.Components
                 {
                     if (e.Cancel)
                     {
-                        ListViewItem item = _items[(HSchedule)sender];
-                        item.SubItems[4].Text = STOPPED;
-                        item.Checked = false;
+                        Invoke(new MethodInvoker(() =>
+                        {
+                            ListViewItem item = _items[(HSchedule)sender];
+                            item.SubItems[4].Text = STOPPED;
+                            item.Checked = false;
+                        }));
                     }
                 }
             }
