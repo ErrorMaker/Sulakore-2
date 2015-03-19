@@ -7,7 +7,6 @@ using System.Net.Sockets;
 using Sulakore.Protocol;
 using Sulakore.Communication;
 using Sulakore.Protocol.Encryption;
-using System.Diagnostics;
 
 namespace Sulakore.Habbo
 {

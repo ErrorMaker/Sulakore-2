@@ -43,7 +43,7 @@ namespace Sulakore.Extensions
         /// <summary>
         /// Gets the HTriggers instance associated with the extension that handles in-game events.
         /// </summary>
-        public HTriggers Triggers { get; protected internal set; }
+        public HTriggers Triggers { get; set; }
 
         /// <summary>
         /// Gets or sets the priorty of the extension that determines whether a new thread is spawned when handling the flow of data(High), or whether to pull one from the system's thread pool(Normal).

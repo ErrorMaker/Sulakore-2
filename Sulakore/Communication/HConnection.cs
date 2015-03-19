@@ -108,7 +108,8 @@ namespace Sulakore.Communication
         public HConnection()
         {
             _filters = new HFilters();
-            _triggers = new HTriggers();
+            _triggers = new HTriggers(false);
+
             _resetHostLock = new object();
             _disconnectLock = new object();
             _sendToClientLock = new object();
@@ -341,10 +342,10 @@ namespace Sulakore.Communication
             {
                 switch (_toServerS)
                 {
-                    case 2: Outgoing.InitiateHandshake = BigEndian.DecypherShort(data, 4); break;
-                    case 3: Outgoing.ClientPublicKey = BigEndian.DecypherShort(data, 4); break;
-                    case 4: Outgoing.FlashClientUrl = BigEndian.DecypherShort(data, 4); break;
-                    case 6: Outgoing.ClientSsoTicket = BigEndian.DecypherShort(data, 4); break;
+                    case 2: Outgoing.Global.InitiateHandshake = BigEndian.DecypherShort(data, 4); break;
+                    case 3: Outgoing.Global.ClientPublicKey = BigEndian.DecypherShort(data, 4); break;
+                    case 4: Outgoing.Global.FlashClientUrl = BigEndian.DecypherShort(data, 4); break;
+                    case 6: Outgoing.Global.ClientSsoTicket = BigEndian.DecypherShort(data, 4); break;
                     case 7: _grabHeaders = false; break;
                 }
             }

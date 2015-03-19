@@ -163,8 +163,8 @@ namespace Sulakore.Extensions
 
                     extension.Contractor = this;
                     extension.Location = extensionPath;
-                    extension.Triggers = new HTriggers();
                     extension.Filters = _connection.Filters;
+                    extension.Triggers = new HTriggers(true);
                     extension.UIContextType = extensionFormType;
                     extension.Version = new Version(FileVersionInfo.GetVersionInfo(extensionPath).FileVersion);
                 }

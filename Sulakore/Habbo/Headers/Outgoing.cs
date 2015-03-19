@@ -1,80 +1,70 @@
 ﻿using System;
 using System.IO;
-using System.Reflection;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization.Json;
 
 namespace Sulakore.Habbo.Headers
 {
-    [Serializable]
-    public struct Outgoing : ISerializable
+    public class Outgoing
     {
-        private static Outgoing _instance;
-        private static readonly PropertyInfo[] _props;
-        private static readonly BinaryFormatter _binFormatter;
+        private static readonly Type _outgoingType;
+        private static readonly DataContractJsonSerializer _serializer;
 
-        public const ushort ClientHello = 4000;
+        private static readonly Outgoing _global;
+        public static Outgoing Global
+        {
+            get { return _global; }
+        }
 
-        public static ushort InitiateHandshake { get; set; }
-        public static ushort ClientPublicKey { get; set; }
-        public static ushort FlashClientUrl { get; set; }
-        public static ushort ClientSsoTicket { get; set; }
+        public const ushort CLIENT_CONNECT = 4000;
 
-        public static ushort ShopObjectGet { get; set; }
-        public static ushort PetScratch { get; set; }
-        public static ushort PlayerEffect { get; set; }
-        public static ushort BanPlayer { get; set; }
-        public static ushort ChangeClothes { get; set; }
-        public static ushort ChangeMotto { get; set; }
-        public static ushort ChangeStance { get; set; }
-        public static ushort ClickPlayer { get; set; }
-        public static ushort Dance { get; set; }
-        public static ushort Gesture { get; set; }
-        public static ushort KickPlayer { get; set; }
-        public static ushort MoveFurniture { get; set; }
-        public static ushort MutePlayer { get; set; }
-        public static ushort RaiseSign { get; set; }
-        public static ushort RoomExit { get; set; }
-        public static ushort RoomNavigate { get; set; }
-        public static ushort Say { get; set; }
-        public static ushort Shout { get; set; }
-        public static ushort Whisper { get; set; }
-        public static ushort TradePlayer { get; set; }
-        public static ushort Walk { get; set; }
+        public ushort InitiateHandshake { get; set; }
+        public ushort ClientPublicKey { get; set; }
+        public ushort FlashClientUrl { get; set; }
+        public ushort ClientSsoTicket { get; set; }
+
+        public ushort PetScratch { get; set; }
+        public ushort PlayerEffect { get; set; }
+
+        public ushort BanPlayer { get; set; }
+        public ushort KickPlayer { get; set; }
+        public ushort MutePlayer { get; set; }
+        public ushort TradePlayer { get; set; }
+        public ushort ClickPlayer { get; set; }
+
+        public ushort ChangeMotto { get; set; }
+        public ushort ChangeStance { get; set; }
+        public ushort ChangeClothes { get; set; }
+
+        public ushort Walk { get; set; }
+        public ushort Dance { get; set; }
+        public ushort Gesture { get; set; }
+        public ushort RaiseSign { get; set; }
+
+        public ushort RoomExit { get; set; }
+        public ushort RoomNavigate { get; set; }
+        public ushort MoveFurniture { get; set; }
+        public ushort ShopObjectGet { get; set; }
+
+        public ushort Say { get; set; }
+        public ushort Shout { get; set; }
+        public ushort Whisper { get; set; }
 
         static Outgoing()
         {
-            _instance = new Outgoing();
-            _binFormatter = new BinaryFormatter();
-            _props = typeof(Outgoing).GetProperties();
-        }
-        public Outgoing(SerializationInfo info, StreamingContext context)
-        {
-            ushort currentHeader = 0;
-            foreach (PropertyInfo prop in _props)
-            {
-                currentHeader = info.GetUInt16(prop.Name);
-                if (currentHeader == 0) continue;
-
-                prop.SetValue(_instance, currentHeader, null);
-            }
+            _global = new Outgoing();
+            _outgoingType = typeof(Outgoing);
+            _serializer = new DataContractJsonSerializer(_outgoingType);
         }
 
-        public static void Save(string path)
+        public void Save(string path)
         {
-            using (var fileStream = new FileStream(path, FileMode.Create))
-                _binFormatter.Serialize(fileStream, _instance);
+            using (var fileStream = File.Open(path, FileMode.Create))
+                _serializer.WriteObject(fileStream, this);
         }
-        public static void Load(string path)
+        public static Outgoing Load(string path)
         {
-            using (var fileStream = new FileStream(path, FileMode.Open))
-                _instance = (Outgoing)_binFormatter.Deserialize(fileStream);
-        }
-
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            foreach (PropertyInfo prop in _props)
-                info.AddValue(prop.Name, prop.GetValue(_instance, null), typeof(UInt16));
+            using (var fileStream = File.Open(path, FileMode.Open))
+                return (Outgoing)_serializer.ReadObject(fileStream);
         }
     }
 }

@@ -9,9 +9,7 @@ namespace Sulakore.Communication
 {
     public class HTriggers : IDisposable
     {
-        private bool _lockEvents, _captureEvents;
         private readonly Stack<HMessage> _outPrevious, _inPrevious;
-        private readonly IDictionary<int, List<Func<HMessage, HMessage, bool>>> _inProcessors, _outProcessors;
         private readonly IDictionary<ushort, Action<HMessage>> _outLocked, _inLocked, _inCallbacks, _outCallbacks;
 
         #region Incoming Game Event Handlers
@@ -303,38 +301,21 @@ namespace Sulakore.Communication
         }
         #endregion
 
-        public bool LockEvents
-        {
-            get { return _lockEvents; }
-            set
-            {
-                if (value == _lockEvents) return;
+        /// <summary>
+        /// Gets or sets a value that determines whether the instance should attempt to find/fire the compatible in-game events.
+        /// </summary>
+        public bool IsDetecting { get; set; }
 
-                if (!(_lockEvents = value))
-                {
-                    _outLocked.Clear();
-                    _inLocked.Clear();
-                }
-            }
-        }
-        public bool CaptureEvents
-        {
-            get { return _captureEvents; }
-            set
-            {
-                if (value == _captureEvents) return;
-
-                if (!(_captureEvents = value))
-                {
-                    _outPrevious.Clear();
-                    _inPrevious.Clear();
-                }
-            }
-        }
-        public bool UpdateHeaders { get; set; }
+        public static bool UpdateHeaders { get; set; }
+        public static bool IsInRoom { get; private set; }
 
         public HTriggers()
+            : this(true)
+        { }
+        public HTriggers(bool isDetecting)
         {
+            IsDetecting = isDetecting;
+
             _inPrevious = new Stack<HMessage>();
             _outPrevious = new Stack<HMessage>();
 
@@ -388,16 +369,16 @@ namespace Sulakore.Communication
                 if (_outCallbacks.ContainsKey(current.Header))
                     _outCallbacks[current.Header](current);
 
-                if (_outPrevious.Count > 0 && CaptureEvents)
+                if (_outPrevious.Count > 0 && IsDetecting)
                 {
                     HMessage previous = null;
 
                     if (_outPrevious.Count > 0)
                         previous = _outPrevious.Pop();
 
-                    if (LockEvents && _outLocked.ContainsKey(current.Header))
-                        _outLocked[current.Header](current); // These don't make sense, or do they?; Not sure why I put this particular check here.
-                    else if (previous != null && (LockEvents && !_outLocked.ContainsKey(previous.Header)))
+                    if (_outLocked.ContainsKey(current.Header))
+                        _outLocked[current.Header](current);
+                    else if (previous != null && (IsDetecting && !_outLocked.ContainsKey(previous.Header)))
                         ignoreCurrent = ProcessOutgoing(current, previous);
                 }
             }
@@ -407,25 +388,34 @@ namespace Sulakore.Communication
                 {
                     current.Position = 0;
 
-                    if (CaptureEvents)
+                    if (IsDetecting)
                         _outPrevious.Push(current);
                 }
             }
 
         }
-        protected bool ProcessOutgoing(HMessage current, HMessage previous)
+        protected virtual bool ProcessOutgoing(HMessage current, HMessage previous)
         {
             if (current.Length == 6)
             {
                 // Range: 6
                 if (TryProcessAvatarMenuClick(current, previous)) return true;
-                if (TryProcessHostRoomExit(current, previous)) return true;
+                if (TryProcessHostRoomExit(current, previous))
+                {
+                    IsInRoom = false;
+                    return true;
+                }
             }
             else if (current.Length >= 36 && current.Length <= 50)
             {
                 //Range: 36 - 50
                 if (TryProcessHostRaiseSign(current, previous)) return true;
-                if (TryProcessHostRoomNavigate(current, previous)) return true;
+                if (TryProcessHostRoomNavigate(current, previous))
+                {
+                    // TODO: ENSURE the user is in a room, since this can return true even when just ringing doorbell/passcode attempt.
+                    IsInRoom = true;
+                    return true;
+                }
             }
             return false;
         }
@@ -445,13 +435,13 @@ namespace Sulakore.Communication
                 if (_inCallbacks.ContainsKey(current.Header))
                     _inCallbacks[current.Header](current);
 
-                if (_inPrevious.Count > 0 && CaptureEvents)
+                if (_inPrevious.Count > 0 && IsDetecting)
                 {
                     HMessage previous = _inPrevious.Pop();
 
-                    if (LockEvents && _inLocked.ContainsKey(current.Header))
+                    if (_inLocked.ContainsKey(current.Header))
                         _inLocked[current.Header](current);
-                    else if (previous != null && (LockEvents && _inLocked.ContainsKey(previous.Header)))
+                    else if (previous != null && (IsDetecting && !_inLocked.ContainsKey(previous.Header)))
                         ignoreCurrent = ProcessIncoming(current, previous);
                 }
             }
@@ -461,12 +451,12 @@ namespace Sulakore.Communication
                 {
                     current.Position = 0;
 
-                    if (CaptureEvents)
+                    if (IsDetecting)
                         _inPrevious.Push(current);
                 }
             }
         }
-        protected bool ProcessIncoming(HMessage current, HMessage previous)
+        protected virtual bool ProcessIncoming(HMessage current, HMessage previous)
         {
             if (current.Length == 6)
             {
@@ -476,14 +466,23 @@ namespace Sulakore.Communication
             return false;
         }
 
+        protected void InLockHeader(ushort header, Action<HMessage> eventRaiser)
+        {
+            _inLocked[header] = eventRaiser;
+        }
+        protected void OutLockHeader(ushort header, Action<HMessage> eventRaiser)
+        {
+            _outLocked[header] = eventRaiser;
+        }
+
         private bool TryProcessHostRoomExit(HMessage current, HMessage previous)
         {
             if (previous.Length != 2 || current.ReadInt(0) != -1) return false;
 
             if (UpdateHeaders)
-                Outgoing.RoomExit = previous.Header;
+                Outgoing.Global.RoomExit = previous.Header;
 
-            _outLocked[previous.Header] = RaiseOnHostRoomExit;
+            OutLockHeader(previous.Header, RaiseOnHostRoomExit);
             RaiseOnHostRoomExit(previous);
             return true;
         }
@@ -493,9 +492,9 @@ namespace Sulakore.Communication
             if (current.CanReadAt<string>(22) && current.ReadString(22) == "sign")
             {
                 if (UpdateHeaders)
-                    Outgoing.RaiseSign = previous.Header;
+                    Outgoing.Global.RaiseSign = previous.Header;
 
-                _outLocked[previous.Header] = RaiseOnHostRaiseSign;
+                OutLockHeader(previous.Header, RaiseOnHostRaiseSign);
                 RaiseOnHostRaiseSign(previous);
                 isHostRaiseSign = true;
             }
@@ -509,7 +508,7 @@ namespace Sulakore.Communication
                 if (UpdateHeaders)
                     Incoming.PlayerKickHost = current.Header;
 
-                _inLocked[current.Header] = RaiseOnPlayerKickHost;
+                InLockHeader(current.Header, RaiseOnPlayerKickHost);
                 RaiseOnPlayerKickHost(current);
             }
             return isPlayerKickHost;
@@ -523,9 +522,9 @@ namespace Sulakore.Communication
                 case "stand":
                 {
                     if (UpdateHeaders)
-                        Outgoing.ChangeStance = current.Header;
+                        Outgoing.Global.ChangeStance = current.Header;
 
-                    _outLocked[current.Header] = RaiseOnHostChangeStance;
+                    OutLockHeader(current.Header, RaiseOnHostChangeStance);
                     RaiseOnHostChangeStance(current);
                     return true;
                 }
@@ -534,9 +533,9 @@ namespace Sulakore.Communication
                 case "dance_start":
                 {
                     if (UpdateHeaders)
-                        Outgoing.Dance = current.Header;
+                        Outgoing.Global.Dance = current.Header;
 
-                    _outLocked[current.Header] = RaiseOnHostDance;
+                    OutLockHeader(current.Header, RaiseOnHostDance);
                     RaiseOnHostDance(current);
                     return true;
                 }
@@ -547,9 +546,9 @@ namespace Sulakore.Communication
                 case "blow_kiss":
                 {
                     if (UpdateHeaders)
-                        Outgoing.Gesture = current.Header;
+                        Outgoing.Global.Gesture = current.Header;
 
-                    _outLocked[current.Header] = RaiseOnHostGesture;
+                    OutLockHeader(current.Header, RaiseOnHostGesture);
                     RaiseOnHostGesture(current);
                     return true;
                 }
@@ -561,15 +560,15 @@ namespace Sulakore.Communication
             if (previous.Length >= 12 && current.CanReadAt<string>(0)
                 && current.ReadString() == "Navigation")
             {
-                current.ReadString(); // TODO: Check if all navigation request logs use a "go.offical" value.
+                current.ReadString();
                 if (current.ReadString() != "go.official") return false;
 
                 if (previous.ReadInt(0).ToString() == current.ReadString())
                 {
                     if (UpdateHeaders)
-                        Outgoing.RoomNavigate = previous.Header;
+                        Outgoing.Global.RoomNavigate = previous.Header;
 
-                    _outLocked[previous.Header] = RaiseOnHostRoomNavigate;
+                    OutLockHeader(previous.Header, RaiseOnHostRoomExit);
                     RaiseOnHostRoomNavigate(previous);
                     return true;
                 }
@@ -585,7 +584,12 @@ namespace Sulakore.Communication
         {
             if (disposing)
             {
-                CaptureEvents = LockEvents = false;
+                _inPrevious.Clear();
+                _outPrevious.Clear();
+
+                _inLocked.Clear();
+                _outLocked.Clear();
+
                 _inCallbacks.Clear();
                 _outCallbacks.Clear();
             }
