@@ -84,8 +84,8 @@ namespace Sulakore.Habbo
         public HSession(string email, string password, HHotel hotel)
         {
             Email = email;
-            Password = password;
             Hotel = hotel;
+            Password = password;
 
             _cookies = new CookieContainer();
             _httpHotelUri = new Uri(Hotel.ToUrl(false));
@@ -97,9 +97,6 @@ namespace Sulakore.Habbo
 
         public bool Authenticate()
         {
-            // TODO: Finish writing out this class.
-            throw new NotSupportedException();
-
             ExpireCookies();
             Cookies.SetCookies(_httpHotelUri, SKore.GetIpCookie(Hotel));
             try
@@ -120,30 +117,8 @@ namespace Sulakore.Habbo
                 using (var streamReader = new StreamReader(response.GetResponseStream()))
                 {
                     Cookies.Add(response.Cookies);
-                    string responseBody = streamReader.ReadToEnd()
-                        .GetChild("{", '}').Replace("\"", string.Empty);
-
-                    string[] playerInfo = responseBody.Split(',');
-                    foreach (string playerAttribute in playerInfo)
-                    {
-                        string[] attribute = playerAttribute.Split(':');
-                        switch (attribute[0].ToLower())
-                        {
-                            case "uniqueid": UniqueId = attribute[1]; break;
-                            case "name": PlayerName = attribute[1]; break;
-                            case "figurestring": FigureId = attribute[1]; break;
-                            case "selectedbadges": /* TODO: Add support for this */ break;
-                            case "motto": Motto = attribute[1]; break;
-                            case "membersince": MemberSince = DateTime.Parse(playerAttribute.GetChild(":")); break;
-                            case "profilevisible": IsProfileVisible = bool.Parse(attribute[1]); break;
-                            case "sessionlogid": SessionLogId = attribute[1]; break;
-                            case "loginlogid": LoginLogId = attribute[1]; break;
-                            case "identityid": IdentityId = attribute[1]; break;
-                            case "emailverified": IsEmailVerified = bool.Parse(attribute[1]); break;
-                            case "trusted": IsTrusted = bool.Parse(attribute[1]); break;
-                            case "accountid": PlayerId = int.Parse(attribute[1]); break;
-                        }
-                    }
+                    string responseBody = streamReader.ReadToEnd();
+                    UpdateSession(responseBody);
                 }
                 return true;
             }
@@ -172,6 +147,32 @@ namespace Sulakore.Habbo
         {
             foreach (Cookie cookie in _cookies.GetCookies(_httpHotelUri))
                 cookie.Expired = true;
+        }
+        private void UpdateSession(string response)
+        {
+            response = response.GetChild("{", '}')
+                .Replace("\"", string.Empty);
+
+            string[] playerInfo = response.Split(',');
+            foreach (string playerAttribute in playerInfo)
+            {
+                string[] attribute = playerAttribute.Split(':');
+                switch (attribute[0].ToLower())
+                {
+                    case "uniqueid": UniqueId = attribute[1]; break;
+                    case "name": PlayerName = attribute[1]; break;
+                    case "figurestring": FigureId = attribute[1]; break;
+                    case "motto": Motto = attribute[1]; break;
+                    case "membersince": MemberSince = DateTime.Parse(playerAttribute.GetChild(":")); break;
+                    case "profilevisible": IsProfileVisible = bool.Parse(attribute[1]); break;
+                    case "sessionlogid": SessionLogId = attribute[1]; break;
+                    case "loginlogid": LoginLogId = attribute[1]; break;
+                    case "identityid": IdentityId = attribute[1]; break;
+                    case "emailverified": IsEmailVerified = bool.Parse(attribute[1]); break;
+                    case "trusted": IsTrusted = bool.Parse(attribute[1]); break;
+                    case "accountid": PlayerId = int.Parse(attribute[1]); break;
+                }
+            }
         }
         private string ProcessResource(string body)
         {
