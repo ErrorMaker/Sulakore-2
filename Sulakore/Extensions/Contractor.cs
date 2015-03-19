@@ -14,10 +14,11 @@ namespace Sulakore.Extensions
 {
     public class Contractor : IContractor
     {
+        private static readonly string _currentAsmName;
+
         private readonly IHConnection _connection;
         private readonly List<IExtension> _extensions, _extensionsRunning;
 
-        private static readonly string _currentAsmName;
         private const string EXTENSIONS_DIRECTORY = "Extensions";
 
         public event EventHandler<InvokedEventArgs> Invoked;
@@ -30,11 +31,6 @@ namespace Sulakore.Extensions
 
         public HHotel Hotel { get; private set; }
         public HGameData GameData { get; private set; }
-        public IHConnection Connection
-        {
-            get { return _connection; }
-        }
-
         public ReadOnlyCollection<IExtension> Extensions { get; private set; }
         public ReadOnlyCollection<IExtension> ExtensionsRunning { get; private set; }
 
@@ -96,6 +92,24 @@ namespace Sulakore.Extensions
             }
         }
 
+        public int SendToServer(byte[] data)
+        {
+            return _connection.SendToServer(data);
+        }
+        public int SendToServer(ushort header, params object[] chunks)
+        {
+            return _connection.SendToServer(header, chunks);
+        }
+
+        public int SendToClient(byte[] data)
+        {
+            return _connection.SendToClient(data);
+        }
+        public int SendToClient(ushort header, params object[] chunks)
+        {
+            return _connection.SendToClient(header, chunks);
+        }
+
         public void Dispose(IExtension extension)
         {
             extension.Dispose();
@@ -146,9 +160,11 @@ namespace Sulakore.Extensions
                 if (extensionType.BaseType == typeof(ExtensionBase))
                 {
                     extension = (ExtensionBase)Activator.CreateInstance(extensionType);
+
                     extension.Contractor = this;
                     extension.Location = extensionPath;
                     extension.Triggers = new HTriggers();
+                    extension.Filters = _connection.Filters;
                     extension.UIContextType = extensionFormType;
                     extension.Version = new Version(FileVersionInfo.GetVersionInfo(extensionPath).FileVersion);
                 }

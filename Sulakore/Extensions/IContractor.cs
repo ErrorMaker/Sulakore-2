@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 
 using Sulakore.Habbo;
-using Sulakore.Communication;
 
 namespace Sulakore.Extensions
 {
@@ -9,9 +8,14 @@ namespace Sulakore.Extensions
     {
         HHotel Hotel { get; }
         HGameData GameData { get; }
-        IHConnection Connection { get; }
         ReadOnlyCollection<IExtension> Extensions { get; }
         ReadOnlyCollection<IExtension> ExtensionsRunning { get; }
+
+        int SendToServer(byte[] data);
+        int SendToServer(ushort header, params object[] chunks);
+
+        int SendToClient(byte[] data);
+        int SendToClient(ushort header, params object[] chunks);
 
         void Dispose(IExtension extension);
         object Invoke(object sender, string command, params object[] args);

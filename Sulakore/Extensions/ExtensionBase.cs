@@ -37,7 +37,11 @@ namespace Sulakore.Extensions
         /// </summary>
         public Version Version { get; internal set; }
         /// <summary>
-        /// Gets the HTriggers instance associated with the extension.
+        /// Gets the HFilters instance being used by the contractor's IHConnection instance that is used for blocking/replacing data.
+        /// </summary>
+        public HFilters Filters { get; internal set; }
+        /// <summary>
+        /// Gets the HTriggers instance associated with the extension that handles in-game events.
         /// </summary>
         public HTriggers Triggers { get; protected internal set; }
 
@@ -122,7 +126,6 @@ namespace Sulakore.Extensions
                 OnDataToClient(packet);
             }
             catch { }
-            // The side that caused the exception should not be trusted to handle it.
         }
         protected abstract void OnDataToClient(HMessage packet);
 
@@ -136,7 +139,6 @@ namespace Sulakore.Extensions
                 OnDataToServer(packet);
             }
             catch { }
-            // The side that caused the exception should not be trusted to handle it.
         }
         protected abstract void OnDataToServer(HMessage packet);
 
