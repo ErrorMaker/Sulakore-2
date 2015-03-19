@@ -42,7 +42,7 @@ namespace Sulakore.Communication
         /// <summary>
         /// Gets a value that indicates whether the replacement data is different than its original data.
         /// </summary>
-        public bool Replaced
+        public bool IsReplaced
         {
             get { return !_packet.ToString().Equals(Replacement.ToString()); }
         }
