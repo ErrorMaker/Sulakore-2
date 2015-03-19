@@ -10,8 +10,8 @@ namespace Sulakore.Communication
     public class HTriggers : IDisposable
     {
         private bool _lockEvents, _captureEvents;
-
         private readonly Stack<HMessage> _outPrevious, _inPrevious;
+        private readonly IDictionary<int, List<Func<HMessage, HMessage, bool>>> _inProcessors, _outProcessors;
         private readonly IDictionary<ushort, Action<HMessage>> _outLocked, _inLocked, _inCallbacks, _outCallbacks;
 
         #region Incoming Game Event Handlers
@@ -335,8 +335,8 @@ namespace Sulakore.Communication
 
         public HTriggers()
         {
-            _outPrevious = new Stack<HMessage>();
             _inPrevious = new Stack<HMessage>();
+            _outPrevious = new Stack<HMessage>();
 
             _inLocked = new Dictionary<ushort, Action<HMessage>>();
             _outLocked = new Dictionary<ushort, Action<HMessage>>();
@@ -381,6 +381,8 @@ namespace Sulakore.Communication
         public void ProcessOutgoing(HMessage current)
         {
             if (current == null || current.IsCorrupted) return;
+            bool ignoreCurrent = false;
+
             try
             {
                 if (_outCallbacks.ContainsKey(current.Header))
@@ -388,38 +390,44 @@ namespace Sulakore.Communication
 
                 if (_outPrevious.Count > 0 && CaptureEvents)
                 {
+                    HMessage previous = null;
+
+                    if (_outPrevious.Count > 0)
+                        previous = _outPrevious.Pop();
+
                     if (LockEvents && _outLocked.ContainsKey(current.Header))
-                        _outLocked[current.Header](current);
-                    else
-                        ProcessOutgoing(current, _outPrevious.Pop());
+                        _outLocked[current.Header](current); // These don't make sense, or do they?; Not sure why I put this particular check here.
+                    else if (previous != null && (LockEvents && !_outLocked.ContainsKey(previous.Header)))
+                        ignoreCurrent = ProcessOutgoing(current, previous);
                 }
             }
             finally
             {
-                current.Position = 0;
-
-                if (CaptureEvents)
-                    _outPrevious.Push(current);
-            }
-        }
-        protected virtual void ProcessOutgoing(HMessage current, HMessage previous)
-        {
-            switch (current.Length)
-            {
-                case 2: break;
-                case 4: break;
-
-                case 36:
-                case 6:
+                if (!ignoreCurrent)
                 {
-                    if (TryProcessAvatarMenuClick(current, previous)) return;
-                    if (TryProcessHostRoomExit(current, previous)) return;
-                    break;
-                }
+                    current.Position = 0;
 
-                case 10: break;
-                default: break;
+                    if (CaptureEvents)
+                        _outPrevious.Push(current);
+                }
             }
+
+        }
+        protected bool ProcessOutgoing(HMessage current, HMessage previous)
+        {
+            if (current.Length == 6)
+            {
+                // Range: 6
+                if (TryProcessAvatarMenuClick(current, previous)) return true;
+                if (TryProcessHostRoomExit(current, previous)) return true;
+            }
+            else if (current.Length >= 36 && current.Length <= 50)
+            {
+                //Range: 36 - 50
+                if (TryProcessHostRaiseSign(current, previous)) return true;
+                if (TryProcessHostRoomNavigate(current, previous)) return true;
+            }
+            return false;
         }
 
         public void ProcessIncoming(byte[] data)
@@ -430,6 +438,8 @@ namespace Sulakore.Communication
         public void ProcessIncoming(HMessage current)
         {
             if (current == null || current.IsCorrupted) return;
+            bool ignoreCurrent = false;
+
             try
             {
                 if (_inCallbacks.ContainsKey(current.Header))
@@ -437,41 +447,33 @@ namespace Sulakore.Communication
 
                 if (_inPrevious.Count > 0 && CaptureEvents)
                 {
+                    HMessage previous = _inPrevious.Pop();
+
                     if (LockEvents && _inLocked.ContainsKey(current.Header))
                         _inLocked[current.Header](current);
-                    else
-                        ProcessIncoming(current, _inPrevious.Pop());
+                    else if (previous != null && (LockEvents && _inLocked.ContainsKey(previous.Header)))
+                        ignoreCurrent = ProcessIncoming(current, previous);
                 }
             }
             finally
             {
-                current.Position = 0;
-
-                if (CaptureEvents)
-                    _inPrevious.Push(current);
-            }
-        }
-        protected virtual void ProcessIncoming(HMessage current, HMessage previous)
-        {
-            switch (current.Length)
-            {
-                case 6:
+                if (!ignoreCurrent)
                 {
-                    switch (current.ReadInt(0))
-                    {
-                        case 4008:
-                        {
-                            if (UpdateHeaders)
-                                Incoming.PlayerKickHost = current.Header;
+                    current.Position = 0;
 
-                            _inLocked[current.Header] = RaiseOnPlayerKickHost;
-                            OnPlayerKickHost(new PlayerKickHostEventArgs(current));
-                            return;
-                        }
-                    }
-                    break;
+                    if (CaptureEvents)
+                        _inPrevious.Push(current);
                 }
             }
+        }
+        protected bool ProcessIncoming(HMessage current, HMessage previous)
+        {
+            if (current.Length == 6)
+            {
+                // Range: 6
+                if (TryProcessPlayerKickHost(current, previous)) return true;
+            }
+            return false;
         }
 
         private bool TryProcessHostRoomExit(HMessage current, HMessage previous)
@@ -482,22 +484,39 @@ namespace Sulakore.Communication
                 Outgoing.RoomExit = previous.Header;
 
             _outLocked[previous.Header] = RaiseOnHostRoomExit;
-            OnHostRoomExit(new HostRoomExitEventArgs(previous));
+            RaiseOnHostRoomExit(previous);
             return true;
         }
-        private bool TryProcessAvatarMenuClick(HMessage current, HMessage previous)
+        private bool TryProcessHostRaiseSign(HMessage current, HMessage previous)
         {
+            bool isHostRaiseSign = false;
             if (current.CanReadAt<string>(22) && current.ReadString(22) == "sign")
             {
                 if (UpdateHeaders)
                     Outgoing.RaiseSign = previous.Header;
 
                 _outLocked[previous.Header] = RaiseOnHostRaiseSign;
-                OnHostRaiseSign(new HostRaiseSignEventArgs(previous));
-                return true;
+                RaiseOnHostRaiseSign(previous);
+                isHostRaiseSign = true;
             }
-            else if (!previous.CanReadAt<string>(22)) return false;
+            return isHostRaiseSign;
+        }
+        private bool TryProcessPlayerKickHost(HMessage current, HMessage previous)
+        {
+            bool isPlayerKickHost = (current.ReadInt(0) == 4008);
+            if (isPlayerKickHost)
+            {
+                if (UpdateHeaders)
+                    Incoming.PlayerKickHost = current.Header;
 
+                _inLocked[current.Header] = RaiseOnPlayerKickHost;
+                RaiseOnPlayerKickHost(current);
+            }
+            return isPlayerKickHost;
+        }
+        private bool TryProcessAvatarMenuClick(HMessage current, HMessage previous)
+        {
+            if (!previous.CanReadAt<string>(22)) return false;
             switch (previous.ReadString(22))
             {
                 case "sit":
@@ -507,7 +526,7 @@ namespace Sulakore.Communication
                         Outgoing.ChangeStance = current.Header;
 
                     _outLocked[current.Header] = RaiseOnHostChangeStance;
-                    OnHostChangeStance(new HostChangeStanceEventArgs(current));
+                    RaiseOnHostChangeStance(current);
                     return true;
                 }
 
@@ -518,7 +537,7 @@ namespace Sulakore.Communication
                         Outgoing.Dance = current.Header;
 
                     _outLocked[current.Header] = RaiseOnHostDance;
-                    OnHostDance(new HostDanceEventArgs(current));
+                    RaiseOnHostDance(current);
                     return true;
                 }
 
@@ -531,12 +550,31 @@ namespace Sulakore.Communication
                         Outgoing.Gesture = current.Header;
 
                     _outLocked[current.Header] = RaiseOnHostGesture;
-                    OnHostGesture(new HostGestureEventArgs(current));
+                    RaiseOnHostGesture(current);
                     return true;
                 }
-
-                default: return false;
             }
+            return false;
+        }
+        private bool TryProcessHostRoomNavigate(HMessage current, HMessage previous)
+        {
+            if (previous.Length >= 12 && current.CanReadAt<string>(0)
+                && current.ReadString() == "Navigation")
+            {
+                current.ReadString(); // TODO: Check if all navigation request logs use a "go.offical" value.
+                if (current.ReadString() != "go.official") return false;
+
+                if (previous.ReadInt(0).ToString() == current.ReadString())
+                {
+                    if (UpdateHeaders)
+                        Outgoing.RoomNavigate = previous.Header;
+
+                    _outLocked[previous.Header] = RaiseOnHostRoomNavigate;
+                    RaiseOnHostRoomNavigate(previous);
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void Dispose()
